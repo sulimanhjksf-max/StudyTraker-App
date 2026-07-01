@@ -1,12 +1,17 @@
 from flask import Flask, render_template, request, jsonify, session
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.middleware.proxy_fix import ProxyFix
 from functools import wraps
 import sqlite3, os, secrets
 from datetime import datetime, timedelta
 
 app = Flask(__name__)
-app.secret_key        = os.environ.get('SECRET_KEY', secrets.token_hex(32))
-app.permanent_session_lifetime = timedelta(days=30)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+app.secret_key                   = os.environ.get('SECRET_KEY', secrets.token_hex(32))
+app.permanent_session_lifetime   = timedelta(days=30)
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024
 DB = os.environ.get('DATABASE_URL', os.path.join(os.path.dirname(__file__), 'study_tracker.db'))
 
 # ══════════════════════════════════════════════════════════
