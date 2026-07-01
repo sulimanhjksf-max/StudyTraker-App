@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StudyTrack — Productivity Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#6366f1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="StudyTrack">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+  <style>
+    * { font-family: 'Inter', sans-serif; box-sizing: border-box; }
+    body { background: #0B0F19; margin: 0; }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #2a3654; border-radius: 2px; }
+
+    .glass { background: rgba(20,25,39,0.85); backdrop-filter: blur(16px); }
+    .bento { border: 1px solid #1e2d45; }
+
+    .nav-btn { transition: all .2s ease; }
+    .nav-btn:hover { background: rgba(99,102,241,.1); color: #a5b4fc; }
+    .nav-btn.active { background: rgba(99,102,241,.15); color: #818cf8; }
+
+    .btn { transition: all .2s ease; }
+    .btn:hover { filter: brightness(1.12); transform: scale(1.02); }
+    .btn:active { transform: scale(0.97); }
+
+    .task-card { transition: box-shadow .2s ease, transform .2s ease; }
+    .task-card:hover { transform: translateY(-1px); box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+
+    .progress-fill { transition: width .6s cubic-bezier(.4,0,.2,1); }
+
+    @keyframes fade-up { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+    .fade-up { animation: fade-up .25s ease forwards; }
+
+    @keyframes pulse-indigo { 0%,100% { box-shadow: 0 0 0 0 rgba(99,102,241,.35); } 50% { box-shadow: 0 0 0 8px rgba(99,102,241,0); } }
+    .timer-pulse { animation: pulse-indigo 2s infinite; }
+
+    @keyframes slide-in { from { opacity:0; transform:translateX(24px); } to { opacity:1; transform:translateX(0); } }
+    .slide-in { animation: slide-in .25s ease forwards; }
+
+    input[type=number]::-webkit-inner-spin-button { opacity: .4; }
+  </style>
+</head>
+<body class="text-white min-h-screen flex">
+
+<!-- ═══════════════════════════════════════════════ SIDEBAR ═══ -->
+<aside class="w-56 min-h-screen bg-[#0d1323] border-r border-[#1e2d45] flex flex-col fixed left-0 top-0 bottom-0 z-40">
+
+  <!-- Logo -->
+  <div class="px-5 py-5 border-b border-[#1e2d45]">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-700 flex items-center justify-center shadow-lg">
+        <i data-lucide="zap" class="w-4 h-4 text-white"></i>
+      </div>
+      <div>
+        <div class="font-bold text-white text-base leading-none">StudyTrack</div>
+        <div class="text-[10px] text-gray-500 mt-0.5 tracking-wide">PRODUCTIVITY SUITE</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Nav -->
+  <nav class="flex-1 p-3 space-y-0.5 mt-1">
+    <button onclick="navigate('dashboard')" id="nav-dashboard"
+      class="nav-btn active w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium text-indigo-300">
+      <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard
+    </button>
+    <button onclick="navigate('tasks')" id="nav-tasks"
+      class="nav-btn w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-400">
+      <i data-lucide="list-checks" class="w-4 h-4"></i> Tasks
+      <span id="pending-badge" class="ml-auto text-[10px] font-bold bg-indigo-600 text-white px-1.5 py-0.5 rounded-full hidden"></span>
+    </button>
+    <button onclick="navigate('goals')" id="nav-goals"
+      class="nav-btn w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-400">
+      <i data-lucide="target" class="w-4 h-4"></i> Goals
+    </button>
+    <button onclick="navigate('analytics')" id="nav-analytics"
+      class="nav-btn w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-400">
+      <i data-lucide="bar-chart-3" class="w-4 h-4"></i> Analytics
+    </button>
+  </nav>
+
+  <!-- User -->
+  <div class="p-3 border-t border-[#1e2d45]">
+    <div class="flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-[#1a2235] transition-colors">
+      <div class="w-7 h-7 rounded-full bg-indigo-600/25 border border-indigo-600/40 flex items-center justify-center flex-shrink-0">
+        <i data-lucide="user" class="w-3.5 h-3.5 text-indigo-400"></i>
+      </div>
+      <div class="flex-1 min-w-0">
+        <div id="sidebar-name" class="text-xs font-semibold text-white truncate">Student</div>
+        <div id="sidebar-streak" class="text-[10px] text-orange-400 font-medium">0 day streak</div>
+      </div>
+      <button onclick="openNameModal()" class="text-gray-600 hover:text-gray-300 transition-colors flex-shrink-0">
+        <i data-lucide="pencil" class="w-3 h-3"></i>
+      </button>
+    </div>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════════════════════ MAIN ═══════ -->
+<main class="flex-1 ml-56 min-h-screen overflow-auto">
+
+<!-- ─────────────────────────────── DASHBOARD ─── -->
+<div id="view-dashboard" class="p-6 fade-up">
+  <div class="mb-5">
+    <h1 class="text-xl font-bold text-white">Good <span id="greeting">day</span>, <span id="dash-name">Student</span></h1>
+    <p class="text-gray-500 text-xs mt-0.5">Here's your productivity overview for today</p>
+  </div>
+
+  <!-- Row 1 -->
+  <div class="grid grid-cols-12 gap-4 mb-4">
+
+    <!-- Progress + Streak — span 8 -->
+    <div class="col-span-8 bento rounded-2xl bg-[#111827] p-5">
+      <div class="flex items-start justify-between mb-4">
+        <div>
+          <p class="text-[10px] text-gray-500 uppercase tracking-widest mb-1">Today's Goal Completion</p>
+          <div id="dash-pct" class="text-4xl font-black text-white">0%</div>
+          <p class="text-xs text-gray-500 mt-1">of targets met today</p>
+        </div>
+        <div class="flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 px-3 py-2.5 rounded-2xl">
+          <i data-lucide="flame" class="w-5 h-5 text-orange-400"></i>
+          <div>
+            <div id="dash-streak" class="text-2xl font-black text-orange-400 leading-none">0</div>
+            <div class="text-[10px] text-orange-400/60 mt-0.5">day streak</div>
+          </div>
+        </div>
+      </div>
+      <div class="w-full bg-[#1e2d45] rounded-full h-2">
+        <div id="dash-pct-bar" class="progress-fill bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-500 h-2 rounded-full" style="width:0%"></div>
+      </div>
+    </div>
+
+    <!-- Productivity Score — span 4 -->
+    <div class="col-span-4 bento rounded-2xl bg-[#111827] p-5 flex flex-col justify-between">
+      <p class="text-[10px] text-gray-500 uppercase tracking-widest">Productivity Score</p>
+      <div class="text-center py-2">
+        <div id="dash-score" class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-b from-violet-300 to-indigo-600">0</div>
+        <div class="text-[10px] text-gray-500 mt-1">/ 100 efficiency</div>
+      </div>
+      <p class="text-[10px] text-gray-600">Tasks completed on time vs expired</p>
+    </div>
+  </div>
+
+  <!-- Row 2 -->
+  <div class="grid grid-cols-12 gap-4 mb-4">
+
+    <!-- Stats — span 4 -->
+    <div class="col-span-4 bento rounded-2xl bg-[#111827] p-5">
+      <p class="text-[10px] text-gray-500 uppercase tracking-widest mb-4">This Week</p>
+      <div class="space-y-3.5">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2 text-xs text-gray-400">
+            <div class="w-6 h-6 rounded-lg bg-indigo-600/20 flex items-center justify-center">
+              <i data-lucide="clock" class="w-3 h-3 text-indigo-400"></i>
+            </div>
+            Hours studied
+          </div>
+          <span id="dash-hours" class="text-sm font-bold text-white">0h</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2 text-xs text-gray-400">
+            <div class="w-6 h-6 rounded-lg bg-emerald-600/20 flex items-center justify-center">
+              <i data-lucide="check-circle-2" class="w-3 h-3 text-emerald-400"></i>
+            </div>
+            Tasks done
+          </div>
+          <span id="dash-done" class="text-sm font-bold text-white">0</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2 text-xs text-gray-400">
+            <div class="w-6 h-6 rounded-lg bg-yellow-600/20 flex items-center justify-center">
+              <i data-lucide="circle-dashed" class="w-3 h-3 text-yellow-400"></i>
+            </div>
+            Pending
+          </div>
+          <span id="dash-pending" class="text-sm font-bold text-white">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Add — span 8 -->
+    <div class="col-span-8 bento rounded-2xl bg-[#111827] p-5">
+      <p class="text-[10px] text-gray-500 uppercase tracking-widest mb-3">Quick Add Task</p>
+      <form id="quick-form" onsubmit="handleQuickTask(event)" class="space-y-3">
+        <input id="q-title" type="text" placeholder="What do you need to study?" maxlength="100"
+          class="w-full bg-[#1a2235] border border-[#1e2d45] focus:border-indigo-600 rounded-xl px-4 py-2.5 text-sm text-white placeholder-gray-600 outline-none transition-colors">
+        <div class="flex gap-2">
+          <select id="q-cat" class="flex-1 bg-[#1a2235] border border-[#1e2d45] focus:border-indigo-600 rounded-xl px-3 py-2.5 text-xs text-gray-300 outline-none transition-colors">
+            <option>Core</option><option>Research</option><option>Review</option><option>Practice</option><option>Other</option>
+          </select>
+          <div class="relative">
+            <input id="q-limit" type="number" min="1" max="180" value="25"
+              class="w-20 bg-[#1a2235] border border-[#1e2d45] focus:border-indigo-600 rounded-xl px-3 py-2.5 text-xs text-white outline-none transition-colors">
+            <span class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-600 pointer-events-none">min</span>
+          </div>
+          <button type="submit" class="btn bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-1.5">
+            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add
+          </button>
+        </div>
+        <p id="q-err" class="text-red-400 text-xs hidden"></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Row 3 -->
+  <div class="grid grid-cols-12 gap-4">
+    <div class="col-span-8 bento rounded-2xl bg-[#111827] p-5">
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-[10px] text-gray-500 uppercase tracking-widest">Recent Tasks</p>
+        <button onclick="navigate('tasks')" class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors font-medium">View all →</button>
+      </div>
+      <div id="dash-tasks" class="space-y-0"></div>
+    </div>
+    <div class="col-span-4 bento rounded-2xl bg-[#111827] p-5">
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-[10px] text-gray-500 uppercase tracking-widest">Goal Snapshot</p>
+        <button onclick="navigate('goals')" class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors font-medium">Manage →</button>
+      </div>
+      <div id="dash-goals" class="space-y-3"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────────────────────── TASKS ─────── -->
+<div id="view-tasks" class="p-6 hidden fade-up">
+  <div class="flex items-center justify-between mb-5">
+    <div>
+      <h1 class="text-xl font-bold text-white">Tasks</h1>
+      <p class="text-gray-500 text-xs mt-0.5">Manage your study tasks with integrated timers</p>
+    </div>
+    <button onclick="openTaskModal()" class="btn bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-1.5">
+      <i data-lucide="plus" class="w-3.5 h-3.5"></i> New Task
+    </button>
+  </div>
+
+  <!-- Filter pills -->
+  <div class="flex gap-2 mb-5">
+    <button onclick="setFilter('all')" id="f-all" class="filter-pill bg-indigo-600 text-white text-[11px] font-semibold px-3.5 py-1.5 rounded-lg transition-all">All</button>
+    <button onclick="setFilter('pending')" id="f-pending" class="filter-pill bg-[#1a2235] text-gray-400 hover:text-white text-[11px] font-semibold px-3.5 py-1.5 rounded-lg transition-all">Pending</button>
+    <button onclick="setFilter('active')" id="f-active" class="filter-pill bg-[#1a2235] text-gray-400 hover:text-white text-[11px] font-semibold px-3.5 py-1.5 rounded-lg transition-all">Active</button>
+    <button onclick="setFilter('completed')" id="f-completed" class="filter-pill bg-[#1a2235] text-gray-400 hover:text-white text-[11px] font-semibold px-3.5 py-1.5 rounded-lg transition-all">Completed</button>
+    <button onclick="setFilter('expired')" id="f-expired" class="filter-pill bg-[#1a2235] text-gray-400 hover:text-white text-[11px] font-semibold px-3.5 py-1.5 rounded-lg transition-all">Expired</button>
+  </div>
+
+  <div id="task-list" class="space-y-3"></div>
+</div>
+
+<!-- ─────────────────────────────── GOALS ─────── -->
+<div id="view-goals" class="p-6 hidden fade-up">
+  <div class="flex items-center justify-between mb-5">
+    <div>
+      <h1 class="text-xl font-bold text-white">Goals</h1>
+      <p class="text-gray-500 text-xs mt-0.5">Set and track your daily & weekly targets</p>
+    </div>
+    <button onclick="openGoalModal()" class="btn bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-1.5">
+      <i data-lucide="plus" class="w-3.5 h-3.5"></i> New Goal
+    </button>
+  </div>
+
+  <div class="grid grid-cols-2 gap-6">
+    <div>
+      <div class="flex items-center gap-2 mb-3">
+        <i data-lucide="sun" class="w-4 h-4 text-yellow-400"></i>
+        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-widest">Daily Goals</h2>
+      </div>
+      <div id="goals-daily" class="space-y-3"></div>
+    </div>
+    <div>
+      <div class="flex items-center gap-2 mb-3">
+        <i data-lucide="calendar-range" class="w-4 h-4 text-violet-400"></i>
+        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-widest">Weekly Goals</h2>
+      </div>
+      <div id="goals-weekly" class="space-y-3"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────────────────────── ANALYTICS ─── -->
+<div id="view-analytics" class="p-6 hidden fade-up">
+  <div class="mb-5">
+    <h1 class="text-xl font-bold text-white">Analytics</h1>
+    <p class="text-gray-500 text-xs mt-0.5">Deep insights into your study habits</p>
+  </div>
+
+  <!-- Stat cards -->
+  <div class="grid grid-cols-4 gap-4 mb-5">
+    <div class="bento rounded-2xl bg-[#111827] p-4">
+      <p class="text-[10px] text-gray-500 uppercase tracking-widest mb-2">Productivity</p>
+      <div id="a-score" class="text-3xl font-black text-violet-400">0</div>
+      <p class="text-[10px] text-gray-600 mt-1">efficiency score</p>
+    </div>
+    <div class="bento rounded-2xl bg-[#111827] p-4">
+      <p class="text-[10px] text-gray-500 uppercase tracking-widest mb-2">Hours / Week</p>
+      <div id="a-hours" class="text-3xl font-black text-indigo-400">0h</div>
+      <p class="text-[10px] text-gray-600 mt-1">total study time</p>
+    </div>
+    <div class="bento rounded-2xl bg-[#111827] p-4">
+      <p class="text-[10px] text-gray-500 uppercase tracking-widest mb-2">Completed</p>
+      <div id="a-done" class="text-3xl font-black text-emerald-400">0</div>
+      <p class="text-[10px] text-gray-600 mt-1">tasks all time</p>
+    </div>
+    <div class="bento rounded-2xl bg-[#111827] p-4">
+      <p class="text-[10px] text-gray-500 uppercase tracking-widest mb-2">Streak</p>
+      <div id="a-streak" class="text-3xl font-black text-orange-400">0</div>
+      <p class="text-[10px] text-gray-600 mt-1">days in a row</p>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-3 gap-4">
+    <div class="col-span-2 bento rounded-2xl bg-[#111827] p-5">
+      <p class="text-[10px] text-gray-500 uppercase tracking-widest mb-4">Study Hours — Last 7 Days</p>
+      <canvas id="chart-weekly" height="200"></canvas>
+    </div>
+    <div class="bento rounded-2xl bg-[#111827] p-5">
+      <p class="text-[10px] text-gray-500 uppercase tracking-widest mb-4">Category Breakdown</p>
+      <canvas id="chart-cat" height="180"></canvas>
+      <div id="cat-legend" class="mt-3 space-y-1.5"></div>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<!-- ═════════════════════════════════════ TASK MODAL ═══ -->
+<div id="modal-task" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden items-center justify-center flex" onclick="if(event.target===this)closeTaskModal()">
+  <div class="glass bento rounded-2xl p-6 w-full max-w-md mx-4 slide-in">
+    <div class="flex items-center justify-between mb-5">
+      <h2 class="text-base font-bold">New Task</h2>
+      <button onclick="closeTaskModal()" class="w-7 h-7 rounded-lg bg-[#1a2235] flex items-center justify-center text-gray-400 hover:text-white transition-colors">
+        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+      </button>
+    </div>
+    <form id="task-form" onsubmit="handleCreateTask(event)" class="space-y-4">
+      <div>
+        <label class="text-[10px] text-gray-500 uppercase tracking-widest block mb-1.5">Task Title *</label>
+        <input id="t-title" type="text" placeholder="e.g. Review Chapter 5 — Cardiology" maxlength="100"
+          class="w-full bg-[#1a2235] border border-[#1e2d45] focus:border-indigo-600 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 outline-none transition-colors">
+        <p id="t-title-err" class="text-red-400 text-xs mt-1 hidden">Please enter a task title</p>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-[10px] text-gray-500 uppercase tracking-widest block mb-1.5">Category</label>
+          <select id="t-cat" class="w-full bg-[#1a2235] border border-[#1e2d45] focus:border-indigo-600 rounded-xl px-3 py-3 text-sm text-gray-300 outline-none transition-colors">
+            <option>Core</option><option>Research</option><option>Review</option><option>Practice</option><option>Other</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-[10px] text-gray-500 uppercase tracking-widest block mb-1.5">Time Limit (min)</label>
+          <input id="t-limit" type="number" min="1" max="180" value="25"
+            class="w-full bg-[#1a2235] border border-[#1e2d45] focus:border-indigo-600 rounded-xl px-3 py-3 text-sm text-white outline-none transition-colors">
+        </div>
+      </div>
+      <button type="submit" class="btn w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 mt-2">
+        <i data-lucide="plus" class="w-4 h-4"></i> Create Task
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- ═════════════════════════════════════ GOAL MODAL ═══ -->
+<div id="modal-goal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden items-center justify-center flex" onclick="if(event.target===this)closeGoalModal()">
+  <div class="glass bento rounded-2xl p-6 w-full max-w-md mx-4 slide-in">
+    <div class="flex items-center justify-between mb-5">
+      <h2 class="text-base font-bold">New Goal</h2>
+      <button onclick="closeGoalModal()" class="w-7 h-7 rounded-lg bg-[#1a2235] flex items-center justify-center text-gray-400 hover:text-white transition-colors">
+        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+      </button>
+    </div>
+    <form id="goal-form" onsubmit="handleCreateGoal(event)" class="space-y-4">
+      <div>
+        <label class="text-[10px] text-gray-500 uppercase tracking-widest block mb-1.5">Goal Title *</label>
+        <input id="g-title" type="text" placeholder="e.g. Study 4 hours today" maxlength="100"
+          class="w-full bg-[#1a2235] border border-[#1e2d45] focus:border-indigo-600 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 outline-none transition-colors">
+        <p id="g-title-err" class="text-red-400 text-xs mt-1 hidden">Please enter a goal title</p>
+      </div>
+      <div class="grid grid-cols-3 gap-3">
+        <div>
+          <label class="text-[10px] text-gray-500 uppercase tracking-widest block mb-1.5">Type</label>
+          <select id="g-type" class="w-full bg-[#1a2235] border border-[#1e2d45] focus:border-indigo-600 rounded-xl px-3 py-3 text-xs text-gray-300 outline-none">
+            <option value="daily">Daily</option><option value="weekly">Weekly</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-[10px] text-gray-500 uppercase tracking-widest block mb-1.5">Target</label>
+          <input id="g-target" type="number" min="1" max="999" value="4"
+            class="w-full bg-[#1a2235] border border-[#1e2d45] focus:border-indigo-600 rounded-xl px-3 py-3 text-xs text-white outline-none">
+        </div>
+        <div>
+          <label class="text-[10px] text-gray-500 uppercase tracking-widest block mb-1.5">Unit</label>
+          <select id="g-unit" class="w-full bg-[#1a2235] border border-[#1e2d45] focus:border-indigo-600 rounded-xl px-3 py-3 text-xs text-gray-300 outline-none">
+            <option value="tasks">tasks</option><option value="hours">hours</option><option value="pages">pages</option>
+          </select>
+        </div>
+      </div>
+      <button type="submit" class="btn w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 mt-2">
+        <i data-lucide="target" class="w-4 h-4"></i> Set Goal
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- ═════════════════════════════════════ NAME MODAL ═══ -->
+<div id="modal-name" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden items-center justify-center flex" onclick="if(event.target===this)closeNameModal()">
+  <div class="glass bento rounded-2xl p-6 w-full max-w-sm mx-4 slide-in">
+    <h2 class="text-base font-bold mb-4">Your Name</h2>
+    <input id="name-inp" type="text" placeholder="Enter your name" maxlength="30"
+      class="w-full bg-[#1a2235] border border-[#1e2d45] focus:border-indigo-600 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 outline-none transition-colors mb-4">
+    <button onclick="saveName()" class="btn w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-xl text-sm font-semibold">Save</button>
+  </div>
+</div>
+
+<!-- ═════════════════════════════════════ TOAST ════════ -->
+<div id="toast" class="fixed bottom-6 right-6 z-[100] hidden">
+  <div class="glass bento rounded-xl px-4 py-3 flex items-center gap-2.5 shadow-2xl slide-in">
+    <div id="toast-dot" class="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0"></div>
+    <span id="toast-msg" class="text-xs font-semibold text-white"></span>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════
+const S = {
+  view: 'dashboard',
+  tasks: [],
+  goals: [],
+  stats: { weekly:[], categories:[], streak:0, productivity_score:0, week_minutes:0, today_minutes:0, tasks_done:0, tasks_pending:0, tasks_expired:0 },
+  filter: 'all',
+  name: localStorage.getItem('st_name') || 'Student',
+  timers: {},   // id -> { remaining, running, intervalId, total }
+  charts: { weekly: null, cat: null },
+};
+
+// ══════════════════════════════════════════════════════════
+// API
+// ══════════════════════════════════════════════════════════
+const api = {
+  async req(method, url, body) {
+    const r = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    return r.json();
+  },
+  get:  (u)    => api.req('GET',    u),
+  post: (u, d) => api.req('POST',   u, d),
+  put:  (u, d) => api.req('PUT',    u, d),
+  del:  (u)    => api.req('DELETE', u),
+};
+
+// ══════════════════════════════════════════════════════════
+// TIMERS
+// ══════════════════════════════════════════════════════════
+function tmInit(task) {
+  if (S.timers[task.id]) return;
+  const total = task.time_limit * 60;
+  const saved = localStorage.getItem(`st_tmr_${task.id}`);
+  if (saved) {
+    const d = JSON.parse(saved);
+    let remaining = d.remaining;
+    if (d.running && d.ts) remaining = Math.max(0, remaining - Math.floor((Date.now() - d.ts) / 1000));
+    S.timers[task.id] = { remaining, running: false, intervalId: null, total };
+  } else {
+    S.timers[task.id] = { remaining: total, running: false, intervalId: null, total };
+  }
+}
+
+function tmSave(id) {
+  const t = S.timers[id];
+  if (!t) return;
+  localStorage.setItem(`st_tmr_${id}`, JSON.stringify({ remaining: t.remaining, running: t.running, ts: Date.now() }));
+}
+
+function tmFormat(s) {
+  return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+}
+
+function tmStart(id) {
+  const t = S.timers[id];
+  if (!t || t.running || t.remaining <= 0) return;
+  t.running = true;
+  t.intervalId = setInterval(() => tmTick(id), 1000);
+  api.put(`/api/tasks/${id}`, { status: 'active' }).then(u => replaceTask(u));
+  tmSave(id);
+  renderTaskList();
+}
+
+function tmPause(id) {
+  const t = S.timers[id];
+  if (!t || !t.running) return;
+  clearInterval(t.intervalId);
+  t.running = false;
+  t.intervalId = null;
+  tmSave(id);
+  renderTaskList();
+}
+
+function tmReset(id) {
+  const t = S.timers[id];
+  if (!t) return;
+  clearInterval(t.intervalId);
+  const spent = Math.floor((t.total - t.remaining) / 60);
+  if (spent > 0) {
+    api.post('/api/sessions', { task_id: id, duration: spent });
+    api.put(`/api/tasks/${id}`, { time_spent: spent });
+  }
+  t.remaining = t.total;
+  t.running = false;
+  t.intervalId = null;
+  localStorage.removeItem(`st_tmr_${id}`);
+  api.put(`/api/tasks/${id}`, { status: 'pending' }).then(u => replaceTask(u));
+  renderTaskList();
+}
+
+function tmTick(id) {
+  const t = S.timers[id];
+  if (!t) return;
+  t.remaining--;
+  tmSave(id);
+
+  const disp = document.getElementById(`td-${id}`);
+  const ring = document.getElementById(`tr-${id}`);
+  if (disp) disp.textContent = tmFormat(t.remaining);
+  if (ring) ring.style.strokeDashoffset = (100 - (t.remaining / t.total) * 100).toFixed(2);
+
+  if (t.remaining <= 0) {
+    clearInterval(t.intervalId);
+    t.running = false;
+    t.intervalId = null;
+    localStorage.removeItem(`st_tmr_${id}`);
+    const spent = Math.floor(t.total / 60);
+    api.post('/api/sessions', { task_id: id, duration: spent });
+    api.put(`/api/tasks/${id}`, { status: 'expired', time_spent: spent }).then(u => {
+      replaceTask(u);
+      toast('Time expired!', 'warn');
+      loadStats().then(() => renderDashboard());
+      renderTaskList();
+    });
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// DATA
+// ══════════════════════════════════════════════════════════
+async function loadAll() {
+  [S.tasks, S.goals, S.stats] = await Promise.all([
+    api.get('/api/tasks'),
+    api.get('/api/goals'),
+    api.get('/api/stats'),
+  ]);
+  S.tasks.forEach(tmInit);
+  renderAll();
+}
+
+async function loadStats() {
+  S.stats = await api.get('/api/stats');
+  updateSidebar();
+}
+
+function replaceTask(t) {
+  const i = S.tasks.findIndex(x => x.id === t.id);
+  if (i !== -1) S.tasks[i] = t; else S.tasks.unshift(t);
+}
+
+// ══════════════════════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════════════════════
+function navigate(view) {
+  S.view = view;
+  ['dashboard','tasks','goals','analytics'].forEach(v => {
+    document.getElementById(`view-${v}`).classList.toggle('hidden', v !== view);
+    const n = document.getElementById(`nav-${v}`);
+    n.classList.toggle('active', v === view);
+    n.classList.toggle('text-gray-400', v !== view);
+    n.classList.toggle('text-indigo-300', v === view);
+  });
+  if (view === 'analytics') renderAnalytics();
+  else if (view === 'tasks') renderTaskList();
+  else if (view === 'goals') renderGoals();
+  else renderDashboard();
+  lucide.createIcons();
+}
+
+// ══════════════════════════════════════════════════════════
+// RENDER — SIDEBAR
+// ══════════════════════════════════════════════════════════
+function updateSidebar() {
+  document.getElementById('sidebar-name').textContent = S.name;
+  document.getElementById('sidebar-streak').textContent = `🔥 ${S.stats.streak} day streak`;
+  const b = document.getElementById('pending-badge');
+  if (S.stats.tasks_pending > 0) {
+    b.textContent = S.stats.tasks_pending;
+    b.classList.remove('hidden');
+  } else {
+    b.classList.add('hidden');
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// RENDER — DASHBOARD
+// ══════════════════════════════════════════════════════════
+function renderDashboard() {
+  const h = new Date().getHours();
+  document.getElementById('greeting').textContent = h < 12 ? 'Morning' : h < 17 ? 'Afternoon' : 'Evening';
+  document.getElementById('dash-name').textContent = S.name;
+
+  const total = S.goals.length;
+  const done  = S.goals.filter(g => g.completed || g.current_value >= g.target_value).length;
+  const pct   = total > 0 ? Math.round(done / total * 100) : 0;
+
+  document.getElementById('dash-pct').textContent       = `${pct}%`;
+  document.getElementById('dash-pct-bar').style.width   = `${pct}%`;
+  document.getElementById('dash-streak').textContent    = S.stats.streak;
+  document.getElementById('dash-score').textContent     = S.stats.productivity_score;
+  document.getElementById('dash-hours').textContent     = `${(S.stats.week_minutes / 60).toFixed(1)}h`;
+  document.getElementById('dash-done').textContent      = S.stats.tasks_done;
+  document.getElementById('dash-pending').textContent   = S.stats.tasks_pending;
+
+  // Recent tasks
+  const el = document.getElementById('dash-tasks');
+  const recent = S.tasks.slice(0, 6);
+  if (!recent.length) {
+    el.innerHTML = `<p class="text-center py-4 text-gray-600 text-xs">No tasks yet — add one above!</p>`;
+  } else {
+    el.innerHTML = recent.map(t => `
+      <div class="flex items-center gap-3 py-2 border-b border-[#1a2235] last:border-0">
+        <div class="w-1.5 h-1.5 rounded-full flex-shrink-0 ${statusDot(t.status)}"></div>
+        <p class="flex-1 text-xs text-white truncate ${t.status==='completed'?'line-through text-gray-500':''}">${esc(t.title)}</p>
+        <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusPill(t.status)}">${t.status}</span>
+      </div>
+    `).join('');
+  }
+
+  // Goal snapshot
+  const ge = document.getElementById('dash-goals');
+  if (!S.goals.length) {
+    ge.innerHTML = `<p class="text-center py-4 text-gray-600 text-xs">No goals set yet</p>`;
+  } else {
+    ge.innerHTML = S.goals.slice(0,5).map(g => {
+      const p = Math.min(100, g.target_value > 0 ? Math.round(g.current_value / g.target_value * 100) : 0);
+      return `
+        <div>
+          <div class="flex justify-between text-[10px] mb-1">
+            <span class="text-gray-400 truncate">${esc(g.title)}</span>
+            <span class="text-gray-500 ml-2 flex-shrink-0">${p}%</span>
+          </div>
+          <div class="w-full bg-[#1e2d45] rounded-full h-1">
+            <div class="progress-fill h-1 rounded-full ${p>=100?'bg-emerald-500':'bg-indigo-600'}" style="width:${p}%"></div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+  lucide.createIcons();
+}
+
+// ══════════════════════════════════════════════════════════
+// RENDER — TASKS
+// ══════════════════════════════════════════════════════════
+function renderTaskList() {
+  const el = document.getElementById('task-list');
+  if (!el) return;
+  const list = S.filter === 'all' ? S.tasks : S.tasks.filter(t => t.status === S.filter);
+
+  if (!list.length) {
+    el.innerHTML = `<p class="text-center py-12 text-gray-600 text-sm">No ${S.filter !== 'all' ? S.filter + ' ' : ''}tasks yet</p>`;
+    lucide.createIcons();
+    return;
+  }
+
+  el.innerHTML = list.map(t => {
+    const tm  = S.timers[t.id] || { remaining: t.time_limit*60, running: false, total: t.time_limit*60 };
+    const pct = Math.max(0, Math.min(100, (tm.remaining / tm.total) * 100));
+    const done = t.status === 'completed', exp = t.status === 'expired';
+    const ringColor = done ? '#10b981' : exp ? '#ef4444' : tm.running ? '#818cf8' : '#6366f1';
+
+    return `
+      <div class="task-card bento bg-[#111827] rounded-2xl p-5 ${tm.running ? 'timer-pulse border-indigo-500/40' : ''}">
+        <div class="flex items-center gap-4">
+
+          <!-- Circular timer ring -->
+          <div class="relative w-14 h-14 flex-shrink-0">
+            <svg class="w-14 h-14 -rotate-90" viewBox="0 0 36 36">
+              <circle cx="18" cy="18" r="15.9" fill="none" stroke="#1e2d45" stroke-width="2.5"/>
+              <circle id="tr-${t.id}" cx="18" cy="18" r="15.9" fill="none"
+                stroke="${ringColor}" stroke-width="2.5" stroke-linecap="round"
+                stroke-dasharray="100" stroke-dashoffset="${(100-pct).toFixed(2)}"
+                style="transition:stroke-dashoffset 1s linear;"/>
+            </svg>
+            <div class="absolute inset-0 flex items-center justify-center">
+              <span id="td-${t.id}" class="text-[11px] font-bold ${done?'text-emerald-400':exp?'text-red-400':'text-white'}">
+                ${done ? '✓' : exp ? '✕' : tmFormat(tm.remaining)}
+              </span>
+            </div>
+          </div>
+
+          <!-- Info -->
+          <div class="flex-1 min-w-0">
+            <div class="flex items-start justify-between gap-2 mb-1">
+              <h3 class="text-sm font-semibold text-white leading-snug ${done?'line-through text-gray-500':''} truncate">${esc(t.title)}</h3>
+              <div class="flex items-center gap-1.5 flex-shrink-0">
+                ${!done && !exp ? `
+                  ${!tm.running
+                    ? `<button onclick="tmStart(${t.id})" class="btn bg-indigo-600/20 hover:bg-indigo-600 border border-indigo-500/30 text-indigo-300 hover:text-white px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1"><i data-lucide="play" class="w-3 h-3"></i>Start</button>`
+                    : `<button onclick="tmPause(${t.id})" class="btn bg-yellow-500/20 hover:bg-yellow-500 border border-yellow-500/30 text-yellow-300 hover:text-white px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1"><i data-lucide="pause" class="w-3 h-3"></i>Pause</button>`
+                  }
+                  <button onclick="tmReset(${t.id})" title="Reset" class="btn w-7 h-7 bg-[#1a2235] hover:bg-[#243050] border border-[#1e2d45] text-gray-400 hover:text-white rounded-lg flex items-center justify-center"><i data-lucide="rotate-ccw" class="w-3 h-3"></i></button>
+                  <button onclick="completeTask(${t.id})" title="Mark complete" class="btn bg-emerald-600/20 hover:bg-emerald-600 border border-emerald-500/30 text-emerald-300 hover:text-white px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1"><i data-lucide="check" class="w-3 h-3"></i>Done</button>
+                ` : ''}
+                <button onclick="deleteTask(${t.id})" title="Delete" class="btn w-7 h-7 bg-[#1a2235] hover:bg-red-900/30 border border-[#1e2d45] hover:border-red-500/30 text-gray-500 hover:text-red-400 rounded-lg flex items-center justify-center"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-[10px] text-gray-500">${t.category}</span>
+              <span class="text-gray-700">·</span>
+              <span class="text-[10px] text-gray-500">${t.time_limit} min</span>
+              <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusPill(t.status)}">${t.status}</span>
+              ${t.time_spent > 0 ? `<span class="text-[10px] text-gray-600">${t.time_spent}m logged</span>` : ''}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  lucide.createIcons();
+}
+
+// ══════════════════════════════════════════════════════════
+// RENDER — GOALS
+// ══════════════════════════════════════════════════════════
+function renderGoals() {
+  ['daily','weekly'].forEach(type => {
+    const list = S.goals.filter(g => g.type === type);
+    const el   = document.getElementById(`goals-${type}`);
+    if (!el) return;
+
+    if (!list.length) {
+      el.innerHTML = `<p class="text-center py-6 text-gray-600 text-xs">No ${type} goals — add one!</p>`;
+      return;
+    }
+
+    el.innerHTML = list.map(g => {
+      const pct   = Math.min(100, g.target_value > 0 ? Math.round(g.current_value / g.target_value * 100) : 0);
+      const done  = g.completed || g.current_value >= g.target_value;
+      return `
+        <div class="bento bg-[#111827] rounded-2xl p-5 ${done?'border-emerald-600/30':''}">
+          <div class="flex items-start justify-between mb-3">
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-xl ${done?'bg-emerald-600/20':'bg-indigo-600/20'} flex items-center justify-center flex-shrink-0">
+                <i data-lucide="${done?'check-circle-2':'target'}" class="w-4 h-4 ${done?'text-emerald-400':'text-indigo-400'}"></i>
+              </div>
+              <div>
+                <p class="text-sm font-semibold text-white leading-snug">${esc(g.title)}</p>
+                <p class="text-[10px] text-gray-500 mt-0.5">${g.current_value} / ${g.target_value} ${g.unit}</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-bold ${done?'text-emerald-400':'text-indigo-400'}">${pct}%</span>
+              <button onclick="deleteGoal(${g.id})" class="w-6 h-6 rounded-lg bg-[#1a2235] flex items-center justify-center text-gray-600 hover:text-red-400 transition-colors">
+                <i data-lucide="x" class="w-3 h-3"></i>
+              </button>
+            </div>
+          </div>
+          <div class="w-full bg-[#1e2d45] rounded-full h-1.5 mb-3">
+            <div class="progress-fill h-1.5 rounded-full ${done?'bg-emerald-500':'bg-gradient-to-r from-indigo-600 to-violet-600'}" style="width:${pct}%"></div>
+          </div>
+          <div class="flex items-center gap-2">
+            <input type="number" id="gp-${g.id}" value="${g.current_value}" min="0" max="${g.target_value * 2}" step="0.5"
+              class="w-24 bg-[#1a2235] border border-[#1e2d45] focus:border-indigo-600 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none transition-colors">
+            <button onclick="updateGoalProgress(${g.id})" class="btn bg-indigo-600/20 hover:bg-indigo-600 border border-indigo-500/30 text-indigo-300 hover:text-white px-3 py-1.5 rounded-lg text-xs font-semibold">Update</button>
+            ${!done
+              ? `<button onclick="markGoalDone(${g.id})" class="btn bg-emerald-600/20 hover:bg-emerald-600 border border-emerald-500/30 text-emerald-300 hover:text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1"><i data-lucide="check" class="w-3 h-3"></i>Done</button>`
+              : `<span class="text-xs text-emerald-400 font-semibold">Completed!</span>`
+            }
+          </div>
+        </div>
+      `;
+    }).join('');
+  });
+  lucide.createIcons();
+}
+
+// ══════════════════════════════════════════════════════════
+// RENDER — ANALYTICS
+// ══════════════════════════════════════════════════════════
+async function renderAnalytics() {
+  await loadStats();
+  const st = S.stats;
+
+  document.getElementById('a-score').textContent = st.productivity_score;
+  document.getElementById('a-hours').textContent = `${(st.week_minutes / 60).toFixed(1)}h`;
+  document.getElementById('a-done').textContent  = st.tasks_done;
+  document.getElementById('a-streak').textContent = st.streak;
+
+  // Weekly bar chart
+  if (S.charts.weekly) S.charts.weekly.destroy();
+  S.charts.weekly = new Chart(document.getElementById('chart-weekly').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: st.weekly.map(d => d.label),
+      datasets: [{
+        data: st.weekly.map(d => +(d.minutes / 60).toFixed(2)),
+        backgroundColor: st.weekly.map((_, i) => i === st.weekly.length - 1 ? '#6366f1' : 'rgba(99,102,241,0.25)'),
+        borderRadius: 8,
+        borderSkipped: false,
+        hoverBackgroundColor: '#818cf8',
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => `${c.raw}h` }, backgroundColor: '#1a2235', borderColor: '#1e2d45', borderWidth: 1, titleColor: '#9ca3af', bodyColor: '#fff' },
+      },
+      scales: {
+        x: { grid: { color: '#1e2d4540' }, ticks: { color: '#4b5563', font: { size: 11 } } },
+        y: { grid: { color: '#1e2d4540' }, ticks: { color: '#4b5563', font: { size: 11 }, callback: v => `${v}h` }, beginAtZero: true },
+      }
+    }
+  });
+
+  // Category donut
+  if (S.charts.cat) S.charts.cat.destroy();
+  const cats    = st.categories;
+  const palette = ['#6366f1','#10b981','#a855f7','#f59e0b','#ef4444','#06b6d4','#ec4899'];
+
+  if (cats.length > 0) {
+    S.charts.cat = new Chart(document.getElementById('chart-cat').getContext('2d'), {
+      type: 'doughnut',
+      data: {
+        labels: cats.map(c => c.category),
+        datasets: [{
+          data: cats.map(c => c.total),
+          backgroundColor: palette.slice(0, cats.length),
+          borderWidth: 0,
+          hoverOffset: 6,
+        }]
+      },
+      options: {
+        responsive: true,
+        cutout: '72%',
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: c => `${c.label}: ${c.raw} min` }, backgroundColor: '#1a2235', borderColor: '#1e2d45', borderWidth: 1, titleColor: '#9ca3af', bodyColor: '#fff' },
+        }
+      }
+    });
+    const total = cats.reduce((a, c) => a + c.total, 0);
+    document.getElementById('cat-legend').innerHTML = cats.map((c, i) => `
+      <div class="flex items-center gap-2">
+        <div class="w-2 h-2 rounded-sm flex-shrink-0" style="background:${palette[i]}"></div>
+        <span class="text-[10px] text-gray-400 flex-1 truncate">${c.category}</span>
+        <span class="text-[10px] text-gray-600">${total > 0 ? Math.round(c.total / total * 100) : 0}%</span>
+      </div>
+    `).join('');
+  } else {
+    document.getElementById('cat-legend').innerHTML = `<p class="text-[10px] text-gray-600 text-center">No data yet</p>`;
+  }
+}
+
+function renderAll() {
+  updateSidebar();
+  renderDashboard();
+  if (S.view === 'tasks') renderTaskList();
+  if (S.view === 'goals') renderGoals();
+  lucide.createIcons();
+}
+
+// ══════════════════════════════════════════════════════════
+// TASK HANDLERS
+// ══════════════════════════════════════════════════════════
+async function handleQuickTask(e) {
+  e.preventDefault();
+  const title = document.getElementById('q-title').value.trim();
+  const errEl = document.getElementById('q-err');
+  if (!title) {
+    errEl.textContent = 'Please enter a task title';
+    errEl.classList.remove('hidden');
+    document.getElementById('q-title').focus();
+    setTimeout(() => errEl.classList.add('hidden'), 3000);
+    return;
+  }
+  errEl.classList.add('hidden');
+  const task = await api.post('/api/tasks', {
+    title,
+    category: document.getElementById('q-cat').value,
+    time_limit: Math.max(1, parseInt(document.getElementById('q-limit').value) || 25),
+  });
+  S.tasks.unshift(task);
+  tmInit(task);
+  document.getElementById('q-title').value = '';
+  toast('Task added!', 'ok');
+  await loadStats();
+  renderAll();
+}
+
+async function handleCreateTask(e) {
+  e.preventDefault();
+  const title = document.getElementById('t-title').value.trim();
+  if (!title) {
+    document.getElementById('t-title-err').classList.remove('hidden');
+    document.getElementById('t-title').focus();
+    return;
+  }
+  document.getElementById('t-title-err').classList.add('hidden');
+  const task = await api.post('/api/tasks', {
+    title,
+    category: document.getElementById('t-cat').value,
+    time_limit: Math.max(1, parseInt(document.getElementById('t-limit').value) || 25),
+  });
+  S.tasks.unshift(task);
+  tmInit(task);
+  closeTaskModal();
+  toast('Task created!', 'ok');
+  await loadStats();
+  renderAll();
+}
+
+async function completeTask(id) {
+  const tm = S.timers[id];
+  if (tm) {
+    clearInterval(tm.intervalId);
+    const spent = Math.floor((tm.total - tm.remaining) / 60);
+    if (spent > 0) {
+      await api.post('/api/sessions', { task_id: id, duration: spent });
+      await api.put(`/api/tasks/${id}`, { time_spent: spent });
+    }
+    localStorage.removeItem(`st_tmr_${id}`);
+    tm.running = false;
+    tm.intervalId = null;
+  }
+  const updated = await api.put(`/api/tasks/${id}`, { status: 'completed' });
+  replaceTask(updated);
+  toast('Task completed!', 'ok');
+  await loadStats();
+  renderAll();
+}
+
+async function deleteTask(id) {
+  const tm = S.timers[id];
+  if (tm) { clearInterval(tm.intervalId); delete S.timers[id]; }
+  localStorage.removeItem(`st_tmr_${id}`);
+  await api.del(`/api/tasks/${id}`);
+  S.tasks = S.tasks.filter(t => t.id !== id);
+  toast('Task deleted', 'err');
+  await loadStats();
+  renderAll();
+}
+
+function setFilter(f) {
+  S.filter = f;
+  document.querySelectorAll('.filter-pill').forEach(b => {
+    const on = b.id === `f-${f}`;
+    b.className = `filter-pill ${on ? 'bg-indigo-600 text-white' : 'bg-[#1a2235] text-gray-400 hover:text-white'} text-[11px] font-semibold px-3.5 py-1.5 rounded-lg transition-all`;
+  });
+  renderTaskList();
+}
+
+// ══════════════════════════════════════════════════════════
+// GOAL HANDLERS
+// ══════════════════════════════════════════════════════════
+async function handleCreateGoal(e) {
+  e.preventDefault();
+  const title = document.getElementById('g-title').value.trim();
+  if (!title) {
+    document.getElementById('g-title-err').classList.remove('hidden');
+    document.getElementById('g-title').focus();
+    return;
+  }
+  document.getElementById('g-title-err').classList.add('hidden');
+  const goal = await api.post('/api/goals', {
+    title,
+    type:         document.getElementById('g-type').value,
+    target_value: Math.max(1, parseFloat(document.getElementById('g-target').value) || 4),
+    unit:         document.getElementById('g-unit').value,
+  });
+  S.goals.unshift(goal);
+  closeGoalModal();
+  toast('Goal set!', 'ok');
+  renderAll();
+}
+
+async function updateGoalProgress(id) {
+  const val = parseFloat(document.getElementById(`gp-${id}`).value) || 0;
+  const updated = await api.put(`/api/goals/${id}`, { current_value: val });
+  const i = S.goals.findIndex(g => g.id === id);
+  if (i !== -1) S.goals[i] = updated;
+  toast('Progress updated!', 'ok');
+  renderAll();
+}
+
+async function markGoalDone(id) {
+  const goal = S.goals.find(g => g.id === id);
+  if (!goal) return;
+  const updated = await api.put(`/api/goals/${id}`, { current_value: goal.target_value, completed: 1 });
+  const i = S.goals.findIndex(g => g.id === id);
+  if (i !== -1) S.goals[i] = updated;
+  toast('Goal completed!', 'ok');
+  renderAll();
+}
+
+async function deleteGoal(id) {
+  await api.del(`/api/goals/${id}`);
+  S.goals = S.goals.filter(g => g.id !== id);
+  toast('Goal removed', 'err');
+  renderAll();
+}
+
+// ══════════════════════════════════════════════════════════
+// MODALS
+// ══════════════════════════════════════════════════════════
+function openTaskModal() {
+  document.getElementById('modal-task').classList.remove('hidden');
+  setTimeout(() => document.getElementById('t-title').focus(), 50);
+  lucide.createIcons();
+}
+function closeTaskModal() {
+  document.getElementById('modal-task').classList.add('hidden');
+  document.getElementById('task-form').reset();
+  document.getElementById('t-title-err').classList.add('hidden');
+}
+function openGoalModal() {
+  document.getElementById('modal-goal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('g-title').focus(), 50);
+  lucide.createIcons();
+}
+function closeGoalModal() {
+  document.getElementById('modal-goal').classList.add('hidden');
+  document.getElementById('goal-form').reset();
+  document.getElementById('g-title-err').classList.add('hidden');
+}
+function openNameModal() {
+  document.getElementById('name-inp').value = S.name;
+  document.getElementById('modal-name').classList.remove('hidden');
+  setTimeout(() => document.getElementById('name-inp').focus(), 50);
+}
+function closeNameModal() {
+  document.getElementById('modal-name').classList.add('hidden');
+}
+function saveName() {
+  const n = document.getElementById('name-inp').value.trim();
+  if (!n) return;
+  S.name = n;
+  localStorage.setItem('st_name', n);
+  closeNameModal();
+  renderAll();
+  toast('Name updated!', 'ok');
+}
+
+// Escape key closes any open modal
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  closeTaskModal();
+  closeGoalModal();
+  closeNameModal();
+});
+
+// ══════════════════════════════════════════════════════════
+// UTILITIES
+// ══════════════════════════════════════════════════════════
+function statusDot(s) {
+  return { pending:'bg-yellow-400', active:'bg-indigo-400', completed:'bg-emerald-500', expired:'bg-red-500' }[s] || 'bg-gray-500';
+}
+function statusPill(s) {
+  return {
+    pending:   'bg-yellow-500/10 text-yellow-400',
+    active:    'bg-indigo-500/10 text-indigo-400',
+    completed: 'bg-emerald-500/10 text-emerald-400',
+    expired:   'bg-red-500/10 text-red-400',
+  }[s] || 'bg-gray-500/10 text-gray-400';
+}
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+let _toastTimer;
+function toast(msg, type = 'ok') {
+  const el  = document.getElementById('toast');
+  const dot = document.getElementById('toast-dot');
+  document.getElementById('toast-msg').textContent = msg;
+  dot.className = `w-2 h-2 rounded-full flex-shrink-0 ${type==='ok'?'bg-emerald-400':type==='warn'?'bg-yellow-400':'bg-red-400'}`;
+  el.classList.remove('hidden');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.add('hidden'), 2600);
+}
+
+// ══════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  lucide.createIcons();
+  loadAll();
+});
+
+window.addEventListener('beforeunload', () => {
+  Object.entries(S.timers).forEach(([id, tm]) => {
+    if (tm.running) tmSave(Number(id));
+  });
+});
+</script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' })
+          .catch(err => console.warn('SW failed:', err));
+      });
+    }
+  </script>
+</body>
+</html>
