@@ -1,1123 +1,1445 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>StudyTrack — Productivity Dashboard</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#6366f1">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="StudyTrack">
-  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
-  <style>
-    * { font-family: 'Inter', sans-serif; box-sizing: border-box; }
-    body { background: #0B0F19; margin: 0; }
-    ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #2a3654; border-radius: 2px; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>StudyTrack — Productivity</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#6366f1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="StudyTrack">
+<link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{background:#0B0F19;color:#e2e8f0;font-family:system-ui,sans-serif;overflow-x:hidden}
+  ::-webkit-scrollbar{width:4px;height:4px}
+  ::-webkit-scrollbar-track{background:#0d1323}
+  ::-webkit-scrollbar-thumb{background:#2d3a55;border-radius:2px}
+  .card{background:#111827;border:1px solid #1e2d45;border-radius:16px}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:10px;font-size:14px;font-weight:500;cursor:pointer;transition:all .15s;border:none;white-space:nowrap}
+  .btn-primary{background:#6366f1;color:#fff}.btn-primary:hover{background:#4f46e5}
+  .btn-secondary{background:#1e2d45;color:#94a3b8}.btn-secondary:hover{background:#263552;color:#e2e8f0}
+  .btn-danger{background:#991b1b;color:#fca5a5}.btn-danger:hover{background:#7f1d1d}
+  .btn-success{background:#065f46;color:#6ee7b7}.btn-success:hover{background:#047857}
+  .btn-sm{padding:5px 12px;font-size:13px;border-radius:8px}
+  .input{width:100%;background:#0d1a2e;border:1px solid #1e2d45;color:#e2e8f0;border-radius:10px;padding:10px 14px;font-size:14px;outline:none;transition:border-color .15s}
+  .input:focus{border-color:#6366f1}
+  .input::placeholder{color:#4b5563}
+  .badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:500}
 
-    .glass { background: rgba(20,25,39,0.85); backdrop-filter: blur(16px); }
-    .bento { border: 1px solid #1e2d45; }
+  /* Sidebar */
+  #sidebar{position:fixed;left:0;top:0;bottom:0;width:240px;background:#0d1323;border-right:1px solid #1e2d45;display:flex;flex-direction:column;z-index:40;transition:transform .25s cubic-bezier(.4,0,.2,1)}
+  #main-wrap{margin-left:240px;min-height:100vh;transition:margin .25s}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;cursor:pointer;color:#64748b;font-size:14px;font-weight:500;transition:all .15s;margin:2px 0}
+  .nav-item:hover{background:#1a2744;color:#e2e8f0}
+  .nav-item.active{background:#1e3a5f;color:#a5b4fc}
 
-    .nav-btn { transition: all .2s ease; }
-    .nav-btn:hover { background: rgba(99,102,241,.1); color: #a5b4fc; }
-    .nav-btn.active { background: rgba(99,102,241,.15); color: #818cf8; }
+  /* Mobile */
+  @media(max-width:768px){
+    #sidebar{transform:translateX(-100%)}
+    #sidebar.open{transform:translateX(0)}
+    #main-wrap{margin-left:0}
+  }
+  #overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:39}
+  #topbar{display:none;align-items:center;justify-content:space-between;padding:14px 16px;background:#0d1323;border-bottom:1px solid #1e2d45;position:sticky;top:0;z-index:30}
+  @media(max-width:768px){
+    #topbar{display:flex}
+  }
 
-    .btn { transition: all .2s ease; }
-    .btn:hover { filter: brightness(1.12); transform: scale(1.02); }
-    .btn:active { transform: scale(0.97); }
+  /* Modal */
+  .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;align-items:center;justify-content:center;padding:16px}
+  .modal-bg.open{display:flex}
+  .modal{background:#111827;border:1px solid #1e2d45;border-radius:20px;padding:24px;width:100%;max-width:440px;max-height:90vh;overflow-y:auto}
 
-    .task-card { transition: box-shadow .2s ease, transform .2s ease; }
-    .task-card:hover { transform: translateY(-1px); box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+  /* Toast */
+  #toast-box{position:fixed;bottom:24px;right:24px;z-index:200;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+  .toast-item{padding:12px 20px;border-radius:12px;font-size:14px;font-weight:500;transform:translateX(120%);transition:transform .3s;pointer-events:auto;max-width:320px;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+  .toast-item.show{transform:translateX(0)}
+  .toast-success{background:#064e3b;border:1px solid #10b981;color:#6ee7b7}
+  .toast-error{background:#7f1d1d;border:1px solid #ef4444;color:#fca5a5}
+  .toast-info{background:#1e1b4b;border:1px solid #6366f1;color:#a5b4fc}
 
-    .progress-fill { transition: width .6s cubic-bezier(.4,0,.2,1); }
+  /* Timer ring */
+  .timer-ring{transform:rotate(-90deg)}
+  .ring-bg{fill:none;stroke:#1e2d45;stroke-width:3}
+  .ring-fill{fill:none;stroke-width:3;stroke-linecap:round;transition:stroke-dashoffset .5s}
+  .ring-complete{stroke:#10b981}
+  .ring-active{stroke:#6366f1}
+  .ring-idle{stroke:#334155}
 
-    @keyframes fade-up { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
-    .fade-up { animation: fade-up .25s ease forwards; }
+  /* Auth */
+  #auth-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px;background:radial-gradient(ellipse at 50% 0%,#1e1b4b 0%,#0B0F19 60%)}
+  .auth-card{background:#111827;border:1px solid #1e2d45;border-radius:24px;padding:40px 32px;width:100%;max-width:400px;box-shadow:0 24px 64px rgba(0,0,0,.5)}
 
-    @keyframes pulse-indigo { 0%,100% { box-shadow: 0 0 0 0 rgba(99,102,241,.35); } 50% { box-shadow: 0 0 0 8px rgba(99,102,241,0); } }
-    .timer-pulse { animation: pulse-indigo 2s infinite; }
-
-    @keyframes slide-in { from { opacity:0; transform:translateX(24px); } to { opacity:1; transform:translateX(0); } }
-    .slide-in { animation: slide-in .25s ease forwards; }
-
-    input[type=number]::-webkit-inner-spin-button { opacity: .4; }
-  </style>
+  .cat-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+  .bento{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px}
+  .progress-bar{height:6px;background:#1e2d45;border-radius:3px;overflow:hidden}
+  .progress-fill{height:100%;border-radius:3px;transition:width .5s}
+  .stat-card{padding:20px;display:flex;flex-direction:column;gap:6px}
+  .stat-value{font-size:28px;font-weight:700;line-height:1}
+  .stat-label{font-size:13px;color:#64748b}
+  .user-row{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:12px;background:#0d1a2e;border:1px solid #1e2d45}
+  .view-scroll{padding:24px;overflow-y:auto}
+  @media(max-width:768px){.view-scroll{padding:16px}}
+  .task-card{border-radius:14px;padding:16px;background:#111827;border:1px solid #1e2d45;position:relative;overflow:hidden;transition:transform .1s}
+  .task-card:hover{transform:translateY(-1px)}
+  .task-card-border{position:absolute;left:0;top:0;bottom:0;width:4px;border-radius:14px 0 0 14px}
+  .color-swatch{width:28px;height:28px;border-radius:6px;cursor:pointer;border:2px solid transparent;transition:all .15s}
+  .color-swatch.selected{border-color:#fff;transform:scale(1.15)}
+  @keyframes pulse-fire{0%,100%{opacity:1}50%{opacity:.7}}
+  .streak-fire{animation:pulse-fire 2s infinite}
+</style>
 </head>
-<body class="text-white min-h-screen flex">
+<body>
 
-<!-- ═══════════════════════════════════════════════ SIDEBAR ═══ -->
-<aside class="w-56 min-h-screen bg-[#0d1323] border-r border-[#1e2d45] flex flex-col fixed left-0 top-0 bottom-0 z-40">
+<!-- ══════════ AUTH SCREEN ══════════ -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <div class="text-center mb-8">
+      <div style="font-size:48px;margin-bottom:8px">⚡</div>
+      <h1 class="text-2xl font-bold text-white">StudyTrack</h1>
+      <p class="text-sm text-slate-400 mt-1">Your personal productivity hub</p>
+    </div>
 
-  <!-- Logo -->
-  <div class="px-5 py-5 border-b border-[#1e2d45]">
-    <div class="flex items-center gap-3">
-      <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-700 flex items-center justify-center shadow-lg">
-        <i data-lucide="zap" class="w-4 h-4 text-white"></i>
+    <form id="login-form">
+      <div class="mb-4">
+        <label class="block text-xs text-slate-400 mb-2 font-medium uppercase tracking-wide">Email</label>
+        <input type="email" id="login-email" class="input" placeholder="you@example.com" required>
       </div>
-      <div>
-        <div class="font-bold text-white text-base leading-none">StudyTrack</div>
-        <div class="text-[10px] text-gray-500 mt-0.5 tracking-wide">PRODUCTIVITY SUITE</div>
+      <div class="mb-5">
+        <label class="block text-xs text-slate-400 mb-2 font-medium uppercase tracking-wide">Password</label>
+        <input type="password" id="login-pass" class="input" placeholder="••••••••" required>
       </div>
+      <div id="auth-err1" class="hidden mb-4 text-sm text-red-400 bg-red-900/20 border border-red-800 rounded-lg px-4 py-3"></div>
+      <button type="submit" class="btn btn-primary w-full justify-center py-3 text-base">Sign In</button>
+    </form>
+
+    <form id="register-form" class="hidden">
+      <div class="mb-4">
+        <label class="block text-xs text-slate-400 mb-2 font-medium uppercase tracking-wide">Full Name</label>
+        <input type="text" id="reg-name" class="input" placeholder="Your name" required>
+      </div>
+      <div class="mb-4">
+        <label class="block text-xs text-slate-400 mb-2 font-medium uppercase tracking-wide">Email</label>
+        <input type="email" id="reg-email" class="input" placeholder="you@example.com" required>
+      </div>
+      <div class="mb-5">
+        <label class="block text-xs text-slate-400 mb-2 font-medium uppercase tracking-wide">Password</label>
+        <input type="password" id="reg-pass" class="input" placeholder="Min 6 characters" required>
+      </div>
+      <div id="auth-err2" class="hidden mb-4 text-sm text-red-400 bg-red-900/20 border border-red-800 rounded-lg px-4 py-3"></div>
+      <button type="submit" class="btn btn-primary w-full justify-center py-3 text-base">Create Account</button>
+    </form>
+
+    <div class="mt-6 text-center text-sm text-slate-400">
+      <span id="toggle-hint">Don't have an account?</span>
+      <button id="auth-toggle" class="text-indigo-400 font-medium ml-1 hover:text-indigo-300">Sign up</button>
     </div>
   </div>
+</div>
 
-  <!-- Nav -->
-  <nav class="flex-1 p-3 space-y-0.5 mt-1">
-    <button onclick="navigate('dashboard')" id="nav-dashboard"
-      class="nav-btn active w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium text-indigo-300">
-      <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard
-    </button>
-    <button onclick="navigate('tasks')" id="nav-tasks"
-      class="nav-btn w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-400">
-      <i data-lucide="list-checks" class="w-4 h-4"></i> Tasks
-      <span id="pending-badge" class="ml-auto text-[10px] font-bold bg-indigo-600 text-white px-1.5 py-0.5 rounded-full hidden"></span>
-    </button>
-    <button onclick="navigate('goals')" id="nav-goals"
-      class="nav-btn w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-400">
-      <i data-lucide="target" class="w-4 h-4"></i> Goals
-    </button>
-    <button onclick="navigate('analytics')" id="nav-analytics"
-      class="nav-btn w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-400">
-      <i data-lucide="bar-chart-3" class="w-4 h-4"></i> Analytics
-    </button>
-  </nav>
+<!-- ══════════ APP SHELL ══════════ -->
+<div id="app-shell" class="hidden">
+  <div id="overlay" onclick="closeSidebar()"></div>
 
-  <!-- User -->
-  <div class="p-3 border-t border-[#1e2d45]">
-    <div class="flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-[#1a2235] transition-colors">
-      <div class="w-7 h-7 rounded-full bg-indigo-600/25 border border-indigo-600/40 flex items-center justify-center flex-shrink-0">
-        <i data-lucide="user" class="w-3.5 h-3.5 text-indigo-400"></i>
+  <!-- Sidebar -->
+  <aside id="sidebar">
+    <div class="p-5 border-b border-[#1e2d45]">
+      <div class="flex items-center gap-3">
+        <span style="font-size:26px">⚡</span>
+        <div>
+          <div class="font-bold text-white">StudyTrack</div>
+          <div class="text-xs text-slate-500">Productivity Hub</div>
+        </div>
       </div>
-      <div class="flex-1 min-w-0">
-        <div id="sidebar-name" class="text-xs font-semibold text-white truncate">Student</div>
-        <div id="sidebar-streak" class="text-[10px] text-orange-400 font-medium">0 day streak</div>
+    </div>
+
+    <nav class="flex-1 p-3 overflow-y-auto" id="nav-items"></nav>
+
+    <div class="p-3 border-t border-[#1e2d45]">
+      <div id="sidebar-user" class="nav-item" onclick="nav('profile')">
+        <span id="sidebar-avatar" style="font-size:22px">🎓</span>
+        <div class="min-w-0">
+          <div id="sidebar-name" class="text-sm font-medium text-white truncate">—</div>
+          <div id="sidebar-streak" class="text-xs text-slate-500">0 day streak</div>
+        </div>
       </div>
-      <button onclick="openNameModal()" class="text-gray-600 hover:text-gray-300 transition-colors flex-shrink-0">
-        <i data-lucide="pencil" class="w-3 h-3"></i>
+      <button onclick="doLogout()" class="nav-item w-full mt-1 text-red-400 hover:bg-red-900/20 hover:text-red-300">
+        <i data-lucide="log-out" style="width:16px;height:16px"></i> Sign out
       </button>
     </div>
-  </div>
-</aside>
+  </aside>
 
-<!-- ═══════════════════════════════════════════════ MAIN ═══════ -->
-<main class="flex-1 ml-56 min-h-screen overflow-auto">
+  <div id="main-wrap">
+    <!-- Mobile topbar -->
+    <div id="topbar">
+      <button onclick="openSidebar()" class="p-2 rounded-lg hover:bg-[#1e2d45]">
+        <i data-lucide="menu" style="width:20px;height:20px;stroke:#94a3b8"></i>
+      </button>
+      <span class="font-semibold text-white" id="topbar-title">Dashboard</span>
+      <button onclick="nav('profile')" class="w-9 h-9 rounded-full flex items-center justify-center text-lg" style="background:#1e2d45" id="topbar-avatar">🎓</button>
+    </div>
 
-<!-- ─────────────────────────────── DASHBOARD ─── -->
-<div id="view-dashboard" class="p-6 fade-up">
-  <div class="mb-5">
-    <h1 class="text-xl font-bold text-white">Good <span id="greeting">day</span>, <span id="dash-name">Student</span></h1>
-    <p class="text-gray-500 text-xs mt-0.5">Here's your productivity overview for today</p>
-  </div>
+    <div class="view-scroll" id="view-container">
 
-  <!-- Row 1 -->
-  <div class="grid grid-cols-12 gap-4 mb-4">
-
-    <!-- Progress + Streak — span 8 -->
-    <div class="col-span-8 bento rounded-2xl bg-[#111827] p-5">
-      <div class="flex items-start justify-between mb-4">
-        <div>
-          <p class="text-[10px] text-gray-500 uppercase tracking-widest mb-1">Today's Goal Completion</p>
-          <div id="dash-pct" class="text-4xl font-black text-white">0%</div>
-          <p class="text-xs text-gray-500 mt-1">of targets met today</p>
-        </div>
-        <div class="flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 px-3 py-2.5 rounded-2xl">
-          <i data-lucide="flame" class="w-5 h-5 text-orange-400"></i>
+      <!-- DASHBOARD -->
+      <div id="view-dashboard">
+        <div class="flex items-center justify-between mb-5 flex-wrap gap-3">
           <div>
-            <div id="dash-streak" class="text-2xl font-black text-orange-400 leading-none">0</div>
-            <div class="text-[10px] text-orange-400/60 mt-0.5">day streak</div>
+            <h2 class="text-xl font-bold text-white" id="dash-greeting">Good day!</h2>
+            <p class="text-sm text-slate-400 mt-1" id="dash-date"></p>
+          </div>
+          <div id="streak-badge" class="hidden flex items-center gap-2 px-3 py-2 rounded-xl" style="background:#1e1b4b;border:1px solid #4338ca">
+            <span class="streak-fire">🔥</span>
+            <span class="text-sm font-semibold text-indigo-300" id="streak-count">0</span>
           </div>
         </div>
-      </div>
-      <div class="w-full bg-[#1e2d45] rounded-full h-2">
-        <div id="dash-pct-bar" class="progress-fill bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-500 h-2 rounded-full" style="width:0%"></div>
-      </div>
-    </div>
-
-    <!-- Productivity Score — span 4 -->
-    <div class="col-span-4 bento rounded-2xl bg-[#111827] p-5 flex flex-col justify-between">
-      <p class="text-[10px] text-gray-500 uppercase tracking-widest">Productivity Score</p>
-      <div class="text-center py-2">
-        <div id="dash-score" class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-b from-violet-300 to-indigo-600">0</div>
-        <div class="text-[10px] text-gray-500 mt-1">/ 100 efficiency</div>
-      </div>
-      <p class="text-[10px] text-gray-600">Tasks completed on time vs expired</p>
-    </div>
-  </div>
-
-  <!-- Row 2 -->
-  <div class="grid grid-cols-12 gap-4 mb-4">
-
-    <!-- Stats — span 4 -->
-    <div class="col-span-4 bento rounded-2xl bg-[#111827] p-5">
-      <p class="text-[10px] text-gray-500 uppercase tracking-widest mb-4">This Week</p>
-      <div class="space-y-3.5">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2 text-xs text-gray-400">
-            <div class="w-6 h-6 rounded-lg bg-indigo-600/20 flex items-center justify-center">
-              <i data-lucide="clock" class="w-3 h-3 text-indigo-400"></i>
+        <div id="encourage-banner" class="hidden mb-4 px-4 py-3 rounded-xl text-sm font-medium" style="background:#1e3a5f;border:1px solid #2563eb;color:#93c5fd"></div>
+        <div class="bento mb-6" id="dash-stats"></div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div class="card p-5">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="font-semibold text-white">Recent Tasks</h3>
+              <button onclick="nav('tasks')" class="text-xs text-indigo-400 hover:text-indigo-300">View all</button>
             </div>
-            Hours studied
+            <div id="dash-tasks" class="space-y-2"></div>
           </div>
-          <span id="dash-hours" class="text-sm font-bold text-white">0h</span>
-        </div>
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2 text-xs text-gray-400">
-            <div class="w-6 h-6 rounded-lg bg-emerald-600/20 flex items-center justify-center">
-              <i data-lucide="check-circle-2" class="w-3 h-3 text-emerald-400"></i>
-            </div>
-            Tasks done
+          <div class="card p-5">
+            <h3 class="font-semibold text-white mb-4">Quick Add Task</h3>
+            <form onsubmit="quickAddTask(event)" class="space-y-3">
+              <input type="text" id="quick-title" class="input" placeholder="Task title..." required>
+              <select id="quick-cat" class="input" style="cursor:pointer"></select>
+              <button type="submit" class="btn btn-primary w-full justify-center">
+                <i data-lucide="plus" style="width:16px;height:16px"></i> Add Task
+              </button>
+            </form>
           </div>
-          <span id="dash-done" class="text-sm font-bold text-white">0</span>
-        </div>
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2 text-xs text-gray-400">
-            <div class="w-6 h-6 rounded-lg bg-yellow-600/20 flex items-center justify-center">
-              <i data-lucide="circle-dashed" class="w-3 h-3 text-yellow-400"></i>
-            </div>
-            Pending
-          </div>
-          <span id="dash-pending" class="text-sm font-bold text-white">0</span>
         </div>
       </div>
-    </div>
 
-    <!-- Quick Add — span 8 -->
-    <div class="col-span-8 bento rounded-2xl bg-[#111827] p-5">
-      <p class="text-[10px] text-gray-500 uppercase tracking-widest mb-3">Quick Add Task</p>
-      <form id="quick-form" onsubmit="handleQuickTask(event)" class="space-y-3">
-        <input id="q-title" type="text" placeholder="What do you need to study?" maxlength="100"
-          class="w-full bg-[#1a2235] border border-[#1e2d45] focus:border-indigo-600 rounded-xl px-4 py-2.5 text-sm text-white placeholder-gray-600 outline-none transition-colors">
-        <div class="flex gap-2">
-          <select id="q-cat" class="flex-1 bg-[#1a2235] border border-[#1e2d45] focus:border-indigo-600 rounded-xl px-3 py-2.5 text-xs text-gray-300 outline-none transition-colors">
-            <option>Core</option><option>Research</option><option>Review</option><option>Practice</option><option>Other</option>
-          </select>
-          <div class="relative">
-            <input id="q-limit" type="number" min="1" max="180" value="25"
-              class="w-20 bg-[#1a2235] border border-[#1e2d45] focus:border-indigo-600 rounded-xl px-3 py-2.5 text-xs text-white outline-none transition-colors">
-            <span class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-600 pointer-events-none">min</span>
+      <!-- TASKS -->
+      <div id="view-tasks" class="hidden">
+        <div class="flex items-center justify-between mb-5 flex-wrap gap-3">
+          <h2 class="text-xl font-bold text-white">Tasks</h2>
+          <div class="flex gap-2 flex-wrap">
+            <select id="task-filter-cat" class="input" style="width:auto;padding:8px 12px;cursor:pointer" onchange="renderTasks()">
+              <option value="">All Categories</option>
+            </select>
+            <select id="task-filter-status" class="input" style="width:auto;padding:8px 12px;cursor:pointer" onchange="renderTasks()">
+              <option value="">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="completed">Completed</option>
+            </select>
+            <button onclick="openTaskModal()" class="btn btn-primary">
+              <i data-lucide="plus" style="width:16px;height:16px"></i> New Task
+            </button>
           </div>
-          <button type="submit" class="btn bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-1.5">
-            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add
+        </div>
+        <div id="tasks-list" class="space-y-3"></div>
+      </div>
+
+      <!-- CATEGORIES -->
+      <div id="view-categories" class="hidden">
+        <div class="flex items-center justify-between mb-5">
+          <h2 class="text-xl font-bold text-white">Categories</h2>
+          <button onclick="openCategoryModal()" class="btn btn-primary">
+            <i data-lucide="plus" style="width:16px;height:16px"></i> New Category
           </button>
         </div>
-        <p id="q-err" class="text-red-400 text-xs hidden"></p>
-      </form>
-    </div>
-  </div>
+        <div id="categories-list" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
+      </div>
 
-  <!-- Row 3 -->
-  <div class="grid grid-cols-12 gap-4">
-    <div class="col-span-8 bento rounded-2xl bg-[#111827] p-5">
-      <div class="flex items-center justify-between mb-3">
-        <p class="text-[10px] text-gray-500 uppercase tracking-widest">Recent Tasks</p>
-        <button onclick="navigate('tasks')" class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors font-medium">View all →</button>
+      <!-- GOALS -->
+      <div id="view-goals" class="hidden">
+        <div class="flex items-center justify-between mb-5">
+          <h2 class="text-xl font-bold text-white">Goals</h2>
+          <button onclick="openGoalModal()" class="btn btn-primary">
+            <i data-lucide="plus" style="width:16px;height:16px"></i> New Goal
+          </button>
+        </div>
+        <div class="mb-2">
+          <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Daily Goals</h3>
+          <div id="goals-daily" class="space-y-3"></div>
+        </div>
+        <div class="mt-6">
+          <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Weekly Goals</h3>
+          <div id="goals-weekly" class="space-y-3"></div>
+        </div>
       </div>
-      <div id="dash-tasks" class="space-y-0"></div>
-    </div>
-    <div class="col-span-4 bento rounded-2xl bg-[#111827] p-5">
-      <div class="flex items-center justify-between mb-3">
-        <p class="text-[10px] text-gray-500 uppercase tracking-widest">Goal Snapshot</p>
-        <button onclick="navigate('goals')" class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors font-medium">Manage →</button>
+
+      <!-- ANALYTICS -->
+      <div id="view-analytics" class="hidden">
+        <h2 class="text-xl font-bold text-white mb-5">Analytics</h2>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
+          <div class="card p-5">
+            <h3 class="font-semibold text-white mb-4">Study Time (7 days)</h3>
+            <canvas id="chart-weekly" height="180"></canvas>
+          </div>
+          <div class="card p-5">
+            <h3 class="font-semibold text-white mb-4">Time by Category</h3>
+            <canvas id="chart-categories" height="180"></canvas>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div class="card p-5">
+            <h3 class="font-semibold text-white mb-4">Productivity Score</h3>
+            <div class="flex items-center justify-center py-6">
+              <div class="text-center">
+                <div class="text-5xl font-bold text-indigo-400" id="score-value">—</div>
+                <div class="text-sm text-slate-400 mt-2">Completion rate</div>
+                <div class="text-xs text-slate-500 mt-3" id="score-breakdown"></div>
+              </div>
+            </div>
+          </div>
+          <div class="card p-5">
+            <h3 class="font-semibold text-white mb-4">Task Breakdown</h3>
+            <canvas id="chart-tasks" height="180"></canvas>
+          </div>
+        </div>
       </div>
-      <div id="dash-goals" class="space-y-3"></div>
+
+      <!-- PROFILE -->
+      <div id="view-profile" class="hidden">
+        <h2 class="text-xl font-bold text-white mb-5">Profile</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div class="card p-6">
+            <div class="flex flex-col items-center gap-4 mb-6">
+              <button onclick="openAvatarPicker()" class="w-20 h-20 rounded-full flex items-center justify-center hover:opacity-80 transition-opacity relative group" style="background:#1e2d45;font-size:44px">
+                <span id="profile-avatar-display">🎓</span>
+                <div class="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                  <i data-lucide="pencil" style="width:18px;height:18px;stroke:#fff"></i>
+                </div>
+              </button>
+              <div class="text-center">
+                <div class="font-bold text-white text-lg" id="profile-name-display">—</div>
+                <div class="text-sm text-slate-400" id="profile-email-display">—</div>
+              </div>
+            </div>
+            <form onsubmit="saveProfile(event)" class="space-y-4">
+              <div>
+                <label class="block text-xs text-slate-400 mb-2 uppercase tracking-wide">Display Name</label>
+                <input type="text" id="profile-name" class="input" placeholder="Your name">
+              </div>
+              <div>
+                <label class="block text-xs text-slate-400 mb-2 uppercase tracking-wide">New Password</label>
+                <input type="password" id="profile-pass" class="input" placeholder="Leave blank to keep current">
+              </div>
+              <button type="submit" class="btn btn-primary w-full justify-center">Save Changes</button>
+            </form>
+          </div>
+          <div class="card p-6">
+            <h3 class="font-semibold text-white mb-4">Your Stats</h3>
+            <div id="profile-stats" class="space-y-3"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ADMIN -->
+      <div id="view-admin" class="hidden">
+        <div class="flex items-center gap-3 mb-5">
+          <span style="font-size:20px">🛡️</span>
+          <h2 class="text-xl font-bold text-white">Admin Dashboard</h2>
+        </div>
+        <div class="bento mb-5" id="admin-stats"></div>
+        <div class="card p-5">
+          <h3 class="font-semibold text-white mb-4">All Users</h3>
+          <div id="admin-users" class="space-y-3"></div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
 
-<!-- ─────────────────────────────── TASKS ─────── -->
-<div id="view-tasks" class="p-6 hidden fade-up">
-  <div class="flex items-center justify-between mb-5">
-    <div>
-      <h1 class="text-xl font-bold text-white">Tasks</h1>
-      <p class="text-gray-500 text-xs mt-0.5">Manage your study tasks with integrated timers</p>
-    </div>
-    <button onclick="openTaskModal()" class="btn bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-1.5">
-      <i data-lucide="plus" class="w-3.5 h-3.5"></i> New Task
-    </button>
-  </div>
-
-  <!-- Filter pills -->
-  <div class="flex gap-2 mb-5">
-    <button onclick="setFilter('all')" id="f-all" class="filter-pill bg-indigo-600 text-white text-[11px] font-semibold px-3.5 py-1.5 rounded-lg transition-all">All</button>
-    <button onclick="setFilter('pending')" id="f-pending" class="filter-pill bg-[#1a2235] text-gray-400 hover:text-white text-[11px] font-semibold px-3.5 py-1.5 rounded-lg transition-all">Pending</button>
-    <button onclick="setFilter('active')" id="f-active" class="filter-pill bg-[#1a2235] text-gray-400 hover:text-white text-[11px] font-semibold px-3.5 py-1.5 rounded-lg transition-all">Active</button>
-    <button onclick="setFilter('completed')" id="f-completed" class="filter-pill bg-[#1a2235] text-gray-400 hover:text-white text-[11px] font-semibold px-3.5 py-1.5 rounded-lg transition-all">Completed</button>
-    <button onclick="setFilter('expired')" id="f-expired" class="filter-pill bg-[#1a2235] text-gray-400 hover:text-white text-[11px] font-semibold px-3.5 py-1.5 rounded-lg transition-all">Expired</button>
-  </div>
-
-  <div id="task-list" class="space-y-3"></div>
-</div>
-
-<!-- ─────────────────────────────── GOALS ─────── -->
-<div id="view-goals" class="p-6 hidden fade-up">
-  <div class="flex items-center justify-between mb-5">
-    <div>
-      <h1 class="text-xl font-bold text-white">Goals</h1>
-      <p class="text-gray-500 text-xs mt-0.5">Set and track your daily & weekly targets</p>
-    </div>
-    <button onclick="openGoalModal()" class="btn bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-1.5">
-      <i data-lucide="plus" class="w-3.5 h-3.5"></i> New Goal
-    </button>
-  </div>
-
-  <div class="grid grid-cols-2 gap-6">
-    <div>
-      <div class="flex items-center gap-2 mb-3">
-        <i data-lucide="sun" class="w-4 h-4 text-yellow-400"></i>
-        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-widest">Daily Goals</h2>
-      </div>
-      <div id="goals-daily" class="space-y-3"></div>
-    </div>
-    <div>
-      <div class="flex items-center gap-2 mb-3">
-        <i data-lucide="calendar-range" class="w-4 h-4 text-violet-400"></i>
-        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-widest">Weekly Goals</h2>
-      </div>
-      <div id="goals-weekly" class="space-y-3"></div>
-    </div>
-  </div>
-</div>
-
-<!-- ─────────────────────────────── ANALYTICS ─── -->
-<div id="view-analytics" class="p-6 hidden fade-up">
-  <div class="mb-5">
-    <h1 class="text-xl font-bold text-white">Analytics</h1>
-    <p class="text-gray-500 text-xs mt-0.5">Deep insights into your study habits</p>
-  </div>
-
-  <!-- Stat cards -->
-  <div class="grid grid-cols-4 gap-4 mb-5">
-    <div class="bento rounded-2xl bg-[#111827] p-4">
-      <p class="text-[10px] text-gray-500 uppercase tracking-widest mb-2">Productivity</p>
-      <div id="a-score" class="text-3xl font-black text-violet-400">0</div>
-      <p class="text-[10px] text-gray-600 mt-1">efficiency score</p>
-    </div>
-    <div class="bento rounded-2xl bg-[#111827] p-4">
-      <p class="text-[10px] text-gray-500 uppercase tracking-widest mb-2">Hours / Week</p>
-      <div id="a-hours" class="text-3xl font-black text-indigo-400">0h</div>
-      <p class="text-[10px] text-gray-600 mt-1">total study time</p>
-    </div>
-    <div class="bento rounded-2xl bg-[#111827] p-4">
-      <p class="text-[10px] text-gray-500 uppercase tracking-widest mb-2">Completed</p>
-      <div id="a-done" class="text-3xl font-black text-emerald-400">0</div>
-      <p class="text-[10px] text-gray-600 mt-1">tasks all time</p>
-    </div>
-    <div class="bento rounded-2xl bg-[#111827] p-4">
-      <p class="text-[10px] text-gray-500 uppercase tracking-widest mb-2">Streak</p>
-      <div id="a-streak" class="text-3xl font-black text-orange-400">0</div>
-      <p class="text-[10px] text-gray-600 mt-1">days in a row</p>
-    </div>
-  </div>
-
-  <div class="grid grid-cols-3 gap-4">
-    <div class="col-span-2 bento rounded-2xl bg-[#111827] p-5">
-      <p class="text-[10px] text-gray-500 uppercase tracking-widest mb-4">Study Hours — Last 7 Days</p>
-      <canvas id="chart-weekly" height="200"></canvas>
-    </div>
-    <div class="bento rounded-2xl bg-[#111827] p-5">
-      <p class="text-[10px] text-gray-500 uppercase tracking-widest mb-4">Category Breakdown</p>
-      <canvas id="chart-cat" height="180"></canvas>
-      <div id="cat-legend" class="mt-3 space-y-1.5"></div>
-    </div>
-  </div>
-</div>
-
-</main>
-
-<!-- ═════════════════════════════════════ TASK MODAL ═══ -->
-<div id="modal-task" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden items-center justify-center flex" onclick="if(event.target===this)closeTaskModal()">
-  <div class="glass bento rounded-2xl p-6 w-full max-w-md mx-4 slide-in">
+<!-- ══════════ TASK MODAL ══════════ -->
+<div id="task-modal" class="modal-bg" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal">
     <div class="flex items-center justify-between mb-5">
-      <h2 class="text-base font-bold">New Task</h2>
-      <button onclick="closeTaskModal()" class="w-7 h-7 rounded-lg bg-[#1a2235] flex items-center justify-center text-gray-400 hover:text-white transition-colors">
-        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+      <h3 class="font-semibold text-white text-lg" id="task-modal-title">New Task</h3>
+      <button onclick="document.getElementById('task-modal').classList.remove('open')" class="text-slate-400 hover:text-white">
+        <i data-lucide="x" style="width:20px;height:20px"></i>
       </button>
     </div>
-    <form id="task-form" onsubmit="handleCreateTask(event)" class="space-y-4">
+    <form onsubmit="saveTask(event)" class="space-y-4">
+      <input type="hidden" id="task-modal-id">
       <div>
-        <label class="text-[10px] text-gray-500 uppercase tracking-widest block mb-1.5">Task Title *</label>
-        <input id="t-title" type="text" placeholder="e.g. Review Chapter 5 — Cardiology" maxlength="100"
-          class="w-full bg-[#1a2235] border border-[#1e2d45] focus:border-indigo-600 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 outline-none transition-colors">
-        <p id="t-title-err" class="text-red-400 text-xs mt-1 hidden">Please enter a task title</p>
+        <label class="block text-xs text-slate-400 mb-2 uppercase tracking-wide">Title</label>
+        <input type="text" id="task-modal-title-input" class="input" placeholder="What needs to be done?" required>
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-2 uppercase tracking-wide">Category</label>
+        <select id="task-modal-cat" class="input" style="cursor:pointer">
+          <option value="">No Category</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-2 uppercase tracking-wide">Time Limit (minutes)</label>
+        <input type="number" id="task-modal-limit" class="input" value="25" min="1" max="480">
+      </div>
+      <div id="task-modal-error" class="hidden text-sm text-red-400 bg-red-900/20 border border-red-800 rounded-lg px-4 py-3"></div>
+      <div class="flex gap-3 pt-2">
+        <button type="button" onclick="document.getElementById('task-modal').classList.remove('open')" class="btn btn-secondary flex-1 justify-center">Cancel</button>
+        <button type="submit" class="btn btn-primary flex-1 justify-center">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══════════ GOAL MODAL ══════════ -->
+<div id="goal-modal" class="modal-bg" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="font-semibold text-white text-lg" id="goal-modal-title">New Goal</h3>
+      <button onclick="document.getElementById('goal-modal').classList.remove('open')" class="text-slate-400 hover:text-white">
+        <i data-lucide="x" style="width:20px;height:20px"></i>
+      </button>
+    </div>
+    <form onsubmit="saveGoal(event)" class="space-y-4">
+      <input type="hidden" id="goal-modal-id">
+      <div>
+        <label class="block text-xs text-slate-400 mb-2 uppercase tracking-wide">Goal Title</label>
+        <input type="text" id="goal-modal-title-input" class="input" placeholder="e.g. Study 4 hours today" required>
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-2 uppercase tracking-wide">Type</label>
+        <select id="goal-modal-type" class="input" style="cursor:pointer">
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+        </select>
       </div>
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="text-[10px] text-gray-500 uppercase tracking-widest block mb-1.5">Category</label>
-          <select id="t-cat" class="w-full bg-[#1a2235] border border-[#1e2d45] focus:border-indigo-600 rounded-xl px-3 py-3 text-sm text-gray-300 outline-none transition-colors">
-            <option>Core</option><option>Research</option><option>Review</option><option>Practice</option><option>Other</option>
-          </select>
+          <label class="block text-xs text-slate-400 mb-2 uppercase tracking-wide">Target</label>
+          <input type="number" id="goal-modal-target" class="input" value="4" min="1" step="0.5">
         </div>
         <div>
-          <label class="text-[10px] text-gray-500 uppercase tracking-widest block mb-1.5">Time Limit (min)</label>
-          <input id="t-limit" type="number" min="1" max="180" value="25"
-            class="w-full bg-[#1a2235] border border-[#1e2d45] focus:border-indigo-600 rounded-xl px-3 py-3 text-sm text-white outline-none transition-colors">
+          <label class="block text-xs text-slate-400 mb-2 uppercase tracking-wide">Unit</label>
+          <input type="text" id="goal-modal-unit" class="input" value="tasks" placeholder="tasks / hours">
         </div>
       </div>
-      <button type="submit" class="btn w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 mt-2">
-        <i data-lucide="plus" class="w-4 h-4"></i> Create Task
-      </button>
+      <div class="flex gap-3 pt-2">
+        <button type="button" onclick="document.getElementById('goal-modal').classList.remove('open')" class="btn btn-secondary flex-1 justify-center">Cancel</button>
+        <button type="submit" class="btn btn-primary flex-1 justify-center">Save</button>
+      </div>
     </form>
   </div>
 </div>
 
-<!-- ═════════════════════════════════════ GOAL MODAL ═══ -->
-<div id="modal-goal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden items-center justify-center flex" onclick="if(event.target===this)closeGoalModal()">
-  <div class="glass bento rounded-2xl p-6 w-full max-w-md mx-4 slide-in">
+<!-- ══════════ CATEGORY MODAL ══════════ -->
+<div id="cat-modal" class="modal-bg" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal">
     <div class="flex items-center justify-between mb-5">
-      <h2 class="text-base font-bold">New Goal</h2>
-      <button onclick="closeGoalModal()" class="w-7 h-7 rounded-lg bg-[#1a2235] flex items-center justify-center text-gray-400 hover:text-white transition-colors">
-        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+      <h3 class="font-semibold text-white text-lg" id="cat-modal-title">New Category</h3>
+      <button onclick="document.getElementById('cat-modal').classList.remove('open')" class="text-slate-400 hover:text-white">
+        <i data-lucide="x" style="width:20px;height:20px"></i>
       </button>
     </div>
-    <form id="goal-form" onsubmit="handleCreateGoal(event)" class="space-y-4">
+    <form onsubmit="saveCategory(event)" class="space-y-4">
+      <input type="hidden" id="cat-modal-id">
       <div>
-        <label class="text-[10px] text-gray-500 uppercase tracking-widest block mb-1.5">Goal Title *</label>
-        <input id="g-title" type="text" placeholder="e.g. Study 4 hours today" maxlength="100"
-          class="w-full bg-[#1a2235] border border-[#1e2d45] focus:border-indigo-600 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 outline-none transition-colors">
-        <p id="g-title-err" class="text-red-400 text-xs mt-1 hidden">Please enter a goal title</p>
+        <label class="block text-xs text-slate-400 mb-2 uppercase tracking-wide">Name</label>
+        <input type="text" id="cat-modal-name" class="input" placeholder="e.g. Core Study" required>
       </div>
-      <div class="grid grid-cols-3 gap-3">
-        <div>
-          <label class="text-[10px] text-gray-500 uppercase tracking-widest block mb-1.5">Type</label>
-          <select id="g-type" class="w-full bg-[#1a2235] border border-[#1e2d45] focus:border-indigo-600 rounded-xl px-3 py-3 text-xs text-gray-300 outline-none">
-            <option value="daily">Daily</option><option value="weekly">Weekly</option>
-          </select>
-        </div>
-        <div>
-          <label class="text-[10px] text-gray-500 uppercase tracking-widest block mb-1.5">Target</label>
-          <input id="g-target" type="number" min="1" max="999" value="4"
-            class="w-full bg-[#1a2235] border border-[#1e2d45] focus:border-indigo-600 rounded-xl px-3 py-3 text-xs text-white outline-none">
-        </div>
-        <div>
-          <label class="text-[10px] text-gray-500 uppercase tracking-widest block mb-1.5">Unit</label>
-          <select id="g-unit" class="w-full bg-[#1a2235] border border-[#1e2d45] focus:border-indigo-600 rounded-xl px-3 py-3 text-xs text-gray-300 outline-none">
-            <option value="tasks">tasks</option><option value="hours">hours</option><option value="pages">pages</option>
-          </select>
+      <div>
+        <label class="block text-xs text-slate-400 mb-2 uppercase tracking-wide">Icon</label>
+        <div id="cat-icon-grid" class="grid grid-cols-8 gap-2 mb-1"></div>
+        <input type="hidden" id="cat-modal-icon" value="📚">
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-2 uppercase tracking-wide">Color</label>
+        <div class="flex items-center gap-3 flex-wrap">
+          <input type="color" id="cat-modal-color" value="#6366f1" style="width:40px;height:40px;border-radius:8px;border:2px solid #1e2d45;cursor:pointer;padding:2px;background:#0d1a2e">
+          <div class="flex gap-2 flex-wrap">
+            <div class="color-swatch" style="background:#6366f1" onclick="setCatColor('#6366f1',this)"></div>
+            <div class="color-swatch" style="background:#10b981" onclick="setCatColor('#10b981',this)"></div>
+            <div class="color-swatch" style="background:#f59e0b" onclick="setCatColor('#f59e0b',this)"></div>
+            <div class="color-swatch" style="background:#ef4444" onclick="setCatColor('#ef4444',this)"></div>
+            <div class="color-swatch" style="background:#a855f7" onclick="setCatColor('#a855f7',this)"></div>
+            <div class="color-swatch" style="background:#06b6d4" onclick="setCatColor('#06b6d4',this)"></div>
+            <div class="color-swatch" style="background:#f97316" onclick="setCatColor('#f97316',this)"></div>
+            <div class="color-swatch" style="background:#ec4899" onclick="setCatColor('#ec4899',this)"></div>
+          </div>
         </div>
       </div>
-      <button type="submit" class="btn w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 mt-2">
-        <i data-lucide="target" class="w-4 h-4"></i> Set Goal
-      </button>
+      <div class="flex gap-3 pt-2">
+        <button type="button" onclick="document.getElementById('cat-modal').classList.remove('open')" class="btn btn-secondary flex-1 justify-center">Cancel</button>
+        <button type="submit" class="btn btn-primary flex-1 justify-center">Save</button>
+      </div>
     </form>
   </div>
 </div>
 
-<!-- ═════════════════════════════════════ NAME MODAL ═══ -->
-<div id="modal-name" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden items-center justify-center flex" onclick="if(event.target===this)closeNameModal()">
-  <div class="glass bento rounded-2xl p-6 w-full max-w-sm mx-4 slide-in">
-    <h2 class="text-base font-bold mb-4">Your Name</h2>
-    <input id="name-inp" type="text" placeholder="Enter your name" maxlength="30"
-      class="w-full bg-[#1a2235] border border-[#1e2d45] focus:border-indigo-600 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 outline-none transition-colors mb-4">
-    <button onclick="saveName()" class="btn w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-xl text-sm font-semibold">Save</button>
+<!-- ══════════ AVATAR MODAL ══════════ -->
+<div id="avatar-modal" class="modal-bg" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="font-semibold text-white text-lg">Choose Avatar</h3>
+      <button onclick="document.getElementById('avatar-modal').classList.remove('open')" class="text-slate-400 hover:text-white">
+        <i data-lucide="x" style="width:20px;height:20px"></i>
+      </button>
+    </div>
+    <div id="avatar-grid" class="grid grid-cols-6 gap-3"></div>
   </div>
 </div>
 
-<!-- ═════════════════════════════════════ TOAST ════════ -->
-<div id="toast" class="fixed bottom-6 right-6 z-[100] hidden">
-  <div class="glass bento rounded-xl px-4 py-3 flex items-center gap-2.5 shadow-2xl slide-in">
-    <div id="toast-dot" class="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0"></div>
-    <span id="toast-msg" class="text-xs font-semibold text-white"></span>
-  </div>
-</div>
+<!-- Toast -->
+<div id="toast-box"></div>
 
 <script>
+// ══════════════════════════════════════════════════════════
+// CONSTANTS
+// ══════════════════════════════════════════════════════════
+const AVATARS = ['🎓','📚','🔬','💡','🚀','⚡','🎯','🏆','💎','🔥','✨','🌟','🦊','🐺','🦁','🐉','🎭','🎨','🏋️','🧠','🌈','🌊','🔮','🎪','🏄','🎸'];
+const CAT_ICONS = ['📚','🔬','📝','⚡','🎯','💡','🔥','✨','🎭','💪','🧠','🌟','🔮','🎨','🏆','💻','🧪','📊','📐','🎵','🌐','⚽','🎮','🏃'];
+const MSG_COMPLETE = [
+  'Crushed it! You\'re on a roll! 🔥',
+  'Task destroyed! You\'re unstoppable! 💪',
+  'Nailed it! Your future self thanks you! ⭐',
+  'Done! One step closer to greatness! 🚀',
+  'Outstanding! You should be proud! 🏆',
+  'Boom! Another one bites the dust! ⚡',
+  'Excellent work! Keep the momentum! 💎',
+  'Locked in and killing it! 🎯',
+];
+const MSG_ENCOURAGE = [
+  'You\'ve got tasks waiting — pick one and get started! 💪',
+  'Progress beats perfection. Let\'s go! 🚀',
+  'Each task you finish builds momentum. Start now! ⚡',
+  'You\'re capable of more than you think! 🌟',
+  'Your consistency is your superpower! 🔥',
+];
+
 // ══════════════════════════════════════════════════════════
 // STATE
 // ══════════════════════════════════════════════════════════
 const S = {
+  user: null,
   view: 'dashboard',
   tasks: [],
+  categories: [],
   goals: [],
-  stats: { weekly:[], categories:[], streak:0, productivity_score:0, week_minutes:0, today_minutes:0, tasks_done:0, tasks_pending:0, tasks_expired:0 },
-  filter: 'all',
-  name: localStorage.getItem('st_name') || 'Student',
-  timers: {},   // id -> { remaining, running, intervalId, total }
-  charts: { weekly: null, cat: null },
+  stats: {},
+  timers: {},
+  charts: {},
+  pendingAvatar: null,
 };
 
 // ══════════════════════════════════════════════════════════
 // API
 // ══════════════════════════════════════════════════════════
-const api = {
-  async req(method, url, body) {
-    const r = await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: body ? JSON.stringify(body) : undefined,
-    });
+async function api(method, path, body) {
+  const opts = { method, credentials: 'include', headers: { 'Content-Type': 'application/json' } };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  try {
+    const r = await fetch(path, opts);
+    if (r.status === 401) { showAuth(); return null; }
     return r.json();
-  },
-  get:  (u)    => api.req('GET',    u),
-  post: (u, d) => api.req('POST',   u, d),
-  put:  (u, d) => api.req('PUT',    u, d),
-  del:  (u)    => api.req('DELETE', u),
+  } catch {
+    toast('Network error. Check connection.', 'error');
+    return null;
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════════════════════
+async function initAuth() {
+  const res = await api('GET', '/api/auth/me');
+  if (res && res.user) {
+    S.user = res.user;
+    showApp();
+    await loadAll();
+  } else {
+    showAuth();
+  }
+}
+
+function showAuth() {
+  document.getElementById('auth-screen').style.display = 'flex';
+  document.getElementById('app-shell').classList.add('hidden');
+  S.user = null;
+}
+
+function showApp() {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app-shell').classList.remove('hidden');
+  buildNav();
+  updateSidebarUser();
+  lucide.createIcons();
+}
+
+document.getElementById('login-form').onsubmit = async function(e) {
+  e.preventDefault();
+  const errEl = document.getElementById('auth-err1');
+  errEl.classList.add('hidden');
+  const res = await api('POST', '/api/auth/login', {
+    email: document.getElementById('login-email').value.trim(),
+    password: document.getElementById('login-pass').value,
+  });
+  if (!res) return;
+  if (res.error) { errEl.textContent = res.error; errEl.classList.remove('hidden'); return; }
+  S.user = res.user;
+  showApp();
+  await loadAll();
 };
 
-// ══════════════════════════════════════════════════════════
-// TIMERS
-// ══════════════════════════════════════════════════════════
-function tmInit(task) {
-  if (S.timers[task.id]) return;
-  const total = task.time_limit * 60;
-  const saved = localStorage.getItem(`st_tmr_${task.id}`);
-  if (saved) {
-    const d = JSON.parse(saved);
-    let remaining = d.remaining;
-    if (d.running && d.ts) remaining = Math.max(0, remaining - Math.floor((Date.now() - d.ts) / 1000));
-    S.timers[task.id] = { remaining, running: false, intervalId: null, total };
-  } else {
-    S.timers[task.id] = { remaining: total, running: false, intervalId: null, total };
-  }
-}
+document.getElementById('register-form').onsubmit = async function(e) {
+  e.preventDefault();
+  const errEl = document.getElementById('auth-err2');
+  errEl.classList.add('hidden');
+  const res = await api('POST', '/api/auth/register', {
+    username: document.getElementById('reg-name').value.trim(),
+    email:    document.getElementById('reg-email').value.trim(),
+    password: document.getElementById('reg-pass').value,
+  });
+  if (!res) return;
+  if (res.error) { errEl.textContent = res.error; errEl.classList.remove('hidden'); return; }
+  S.user = res.user;
+  showApp();
+  await loadAll();
+  toast('Welcome to StudyTrack! 🎉', 'success');
+};
 
-function tmSave(id) {
-  const t = S.timers[id];
-  if (!t) return;
-  localStorage.setItem(`st_tmr_${id}`, JSON.stringify({ remaining: t.remaining, running: t.running, ts: Date.now() }));
-}
+let showingRegister = false;
+document.getElementById('auth-toggle').onclick = () => {
+  showingRegister = !showingRegister;
+  document.getElementById('login-form').classList.toggle('hidden', showingRegister);
+  document.getElementById('register-form').classList.toggle('hidden', !showingRegister);
+  document.getElementById('toggle-hint').textContent = showingRegister ? 'Already have an account?' : "Don't have an account?";
+  document.getElementById('auth-toggle').textContent = showingRegister ? 'Sign in' : 'Sign up';
+};
 
-function tmFormat(s) {
-  return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
-}
-
-function tmStart(id) {
-  const t = S.timers[id];
-  if (!t || t.running || t.remaining <= 0) return;
-  t.running = true;
-  t.intervalId = setInterval(() => tmTick(id), 1000);
-  api.put(`/api/tasks/${id}`, { status: 'active' }).then(u => replaceTask(u));
-  tmSave(id);
-  renderTaskList();
-}
-
-function tmPause(id) {
-  const t = S.timers[id];
-  if (!t || !t.running) return;
-  clearInterval(t.intervalId);
-  t.running = false;
-  t.intervalId = null;
-  tmSave(id);
-  renderTaskList();
-}
-
-function tmReset(id) {
-  const t = S.timers[id];
-  if (!t) return;
-  clearInterval(t.intervalId);
-  const spent = Math.floor((t.total - t.remaining) / 60);
-  if (spent > 0) {
-    api.post('/api/sessions', { task_id: id, duration: spent });
-    api.put(`/api/tasks/${id}`, { time_spent: spent });
-  }
-  t.remaining = t.total;
-  t.running = false;
-  t.intervalId = null;
-  localStorage.removeItem(`st_tmr_${id}`);
-  api.put(`/api/tasks/${id}`, { status: 'pending' }).then(u => replaceTask(u));
-  renderTaskList();
-}
-
-function tmTick(id) {
-  const t = S.timers[id];
-  if (!t) return;
-  t.remaining--;
-  tmSave(id);
-
-  const disp = document.getElementById(`td-${id}`);
-  const ring = document.getElementById(`tr-${id}`);
-  if (disp) disp.textContent = tmFormat(t.remaining);
-  if (ring) ring.style.strokeDashoffset = (100 - (t.remaining / t.total) * 100).toFixed(2);
-
-  if (t.remaining <= 0) {
-    clearInterval(t.intervalId);
-    t.running = false;
-    t.intervalId = null;
-    localStorage.removeItem(`st_tmr_${id}`);
-    const spent = Math.floor(t.total / 60);
-    api.post('/api/sessions', { task_id: id, duration: spent });
-    api.put(`/api/tasks/${id}`, { status: 'expired', time_spent: spent }).then(u => {
-      replaceTask(u);
-      toast('Time expired!', 'warn');
-      loadStats().then(() => renderDashboard());
-      renderTaskList();
-    });
-  }
-}
-
-// ══════════════════════════════════════════════════════════
-// DATA
-// ══════════════════════════════════════════════════════════
-async function loadAll() {
-  [S.tasks, S.goals, S.stats] = await Promise.all([
-    api.get('/api/tasks'),
-    api.get('/api/goals'),
-    api.get('/api/stats'),
-  ]);
-  S.tasks.forEach(tmInit);
-  renderAll();
-}
-
-async function loadStats() {
-  S.stats = await api.get('/api/stats');
-  updateSidebar();
-}
-
-function replaceTask(t) {
-  const i = S.tasks.findIndex(x => x.id === t.id);
-  if (i !== -1) S.tasks[i] = t; else S.tasks.unshift(t);
+async function doLogout() {
+  await api('POST', '/api/auth/logout');
+  showAuth();
+  toast('Signed out.', 'info');
 }
 
 // ══════════════════════════════════════════════════════════
 // NAVIGATION
 // ══════════════════════════════════════════════════════════
-function navigate(view) {
-  S.view = view;
-  ['dashboard','tasks','goals','analytics'].forEach(v => {
-    document.getElementById(`view-${v}`).classList.toggle('hidden', v !== view);
-    const n = document.getElementById(`nav-${v}`);
-    n.classList.toggle('active', v === view);
-    n.classList.toggle('text-gray-400', v !== view);
-    n.classList.toggle('text-indigo-300', v === view);
-  });
-  if (view === 'analytics') renderAnalytics();
-  else if (view === 'tasks') renderTaskList();
-  else if (view === 'goals') renderGoals();
-  else renderDashboard();
+const VIEW_DEFS = [
+  { id: 'dashboard',  label: 'Dashboard',  icon: 'layout-dashboard' },
+  { id: 'tasks',      label: 'Tasks',      icon: 'check-square' },
+  { id: 'categories', label: 'Categories', icon: 'tag' },
+  { id: 'goals',      label: 'Goals',      icon: 'target' },
+  { id: 'analytics',  label: 'Analytics',  icon: 'bar-chart-2' },
+  { id: 'admin',      label: 'Admin',      icon: 'shield', adminOnly: true },
+];
+
+function buildNav() {
+  const isAdmin = S.user && S.user.user_type === 'admin';
+  document.getElementById('nav-items').innerHTML = VIEW_DEFS
+    .filter(v => !v.adminOnly || isAdmin)
+    .map(v => `
+      <div class="nav-item" id="nav-${v.id}" onclick="nav('${v.id}')">
+        <i data-lucide="${v.icon}" style="width:17px;height:17px;flex-shrink:0"></i>
+        <span>${v.label}</span>
+      </div>
+    `).join('');
   lucide.createIcons();
 }
 
+function nav(view) {
+  S.view = view;
+  ['dashboard','tasks','categories','goals','analytics','profile','admin'].forEach(v => {
+    const el = document.getElementById('view-' + v);
+    if (el) el.classList.toggle('hidden', v !== view);
+  });
+  document.querySelectorAll('.nav-item[id^="nav-"]').forEach(el => {
+    el.classList.toggle('active', el.id === 'nav-' + view);
+  });
+  const TITLES = { dashboard:'Dashboard', tasks:'Tasks', categories:'Categories', goals:'Goals', analytics:'Analytics', profile:'Profile', admin:'Admin' };
+  document.getElementById('topbar-title').textContent = TITLES[view] || view;
+  closeSidebar();
+  switch (view) {
+    case 'dashboard':  renderDashboard();  break;
+    case 'tasks':      renderTasks();      break;
+    case 'categories': renderCategories(); break;
+    case 'goals':      renderGoals();      break;
+    case 'analytics':  renderAnalytics();  break;
+    case 'profile':    renderProfile();    break;
+    case 'admin':      renderAdmin();      break;
+  }
+}
+
+function updateSidebarUser() {
+  if (!S.user) return;
+  document.getElementById('sidebar-avatar').textContent = S.user.avatar || '🎓';
+  document.getElementById('sidebar-name').textContent   = S.user.username;
+  document.getElementById('topbar-avatar').textContent  = S.user.avatar || '🎓';
+  const streak = (S.stats && S.stats.streak) || 0;
+  document.getElementById('sidebar-streak').textContent = streak + ' day streak';
+}
+
+function openSidebar()  { document.getElementById('sidebar').classList.add('open'); document.getElementById('overlay').style.display = 'block'; }
+function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('overlay').style.display = 'none'; }
+
 // ══════════════════════════════════════════════════════════
-// RENDER — SIDEBAR
+// DATA
 // ══════════════════════════════════════════════════════════
-function updateSidebar() {
-  document.getElementById('sidebar-name').textContent = S.name;
-  document.getElementById('sidebar-streak').textContent = `🔥 ${S.stats.streak} day streak`;
-  const b = document.getElementById('pending-badge');
-  if (S.stats.tasks_pending > 0) {
-    b.textContent = S.stats.tasks_pending;
-    b.classList.remove('hidden');
-  } else {
-    b.classList.add('hidden');
+async function loadAll() {
+  const [tasks, cats, goals, stats] = await Promise.all([
+    api('GET', '/api/tasks'),
+    api('GET', '/api/categories'),
+    api('GET', '/api/goals'),
+    api('GET', '/api/stats'),
+  ]);
+  S.tasks      = tasks  || [];
+  S.categories = cats   || [];
+  S.goals      = goals  || [];
+  S.stats      = stats  || {};
+  populateCatDropdowns();
+  updateSidebarUser();
+  nav(S.view);
+}
+
+async function loadStats() {
+  const res = await api('GET', '/api/stats');
+  if (res) { S.stats = res; updateSidebarUser(); }
+}
+
+function populateCatDropdowns() {
+  const baseOpts = '<option value="">No Category</option>' + S.categories.map(c =>
+    `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('');
+  const filterOpts = '<option value="">All Categories</option>' + S.categories.map(c =>
+    `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('');
+
+  ['task-modal-cat', 'quick-cat'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const cur = el.value;
+    el.innerHTML = baseOpts;
+    if (cur) el.value = cur;
+  });
+
+  const filterEl = document.getElementById('task-filter-cat');
+  if (filterEl) {
+    const cur = filterEl.value;
+    filterEl.innerHTML = filterOpts;
+    if (cur) filterEl.value = cur;
   }
 }
 
 // ══════════════════════════════════════════════════════════
-// RENDER — DASHBOARD
+// DASHBOARD
 // ══════════════════════════════════════════════════════════
 function renderDashboard() {
-  const h = new Date().getHours();
-  document.getElementById('greeting').textContent = h < 12 ? 'Morning' : h < 17 ? 'Afternoon' : 'Evening';
-  document.getElementById('dash-name').textContent = S.name;
+  const hour = new Date().getHours();
+  const grt  = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  document.getElementById('dash-greeting').textContent = `${grt}, ${S.user ? S.user.username.split(' ')[0] : 'there'}!`;
+  document.getElementById('dash-date').textContent = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
-  const total = S.goals.length;
-  const done  = S.goals.filter(g => g.completed || g.current_value >= g.target_value).length;
-  const pct   = total > 0 ? Math.round(done / total * 100) : 0;
+  const streak = S.stats.streak || 0;
+  const sb = document.getElementById('streak-badge');
+  if (streak > 0) {
+    sb.classList.remove('hidden');
+    document.getElementById('streak-count').textContent = streak + ' day streak';
+  } else { sb.classList.add('hidden'); }
 
-  document.getElementById('dash-pct').textContent       = `${pct}%`;
-  document.getElementById('dash-pct-bar').style.width   = `${pct}%`;
-  document.getElementById('dash-streak').textContent    = S.stats.streak;
-  document.getElementById('dash-score').textContent     = S.stats.productivity_score;
-  document.getElementById('dash-hours').textContent     = `${(S.stats.week_minutes / 60).toFixed(1)}h`;
-  document.getElementById('dash-done').textContent      = S.stats.tasks_done;
-  document.getElementById('dash-pending').textContent   = S.stats.tasks_pending;
+  const pending = S.tasks.filter(t => t.status === 'pending').length;
+  const banner  = document.getElementById('encourage-banner');
+  if (pending >= 3) {
+    banner.classList.remove('hidden');
+    banner.textContent = '💡 ' + MSG_ENCOURAGE[Math.floor(Math.random() * MSG_ENCOURAGE.length)] + ` (${pending} pending)`;
+  } else { banner.classList.add('hidden'); }
 
-  // Recent tasks
-  const el = document.getElementById('dash-tasks');
-  const recent = S.tasks.slice(0, 6);
-  if (!recent.length) {
-    el.innerHTML = `<p class="text-center py-4 text-gray-600 text-xs">No tasks yet — add one above!</p>`;
-  } else {
-    el.innerHTML = recent.map(t => `
-      <div class="flex items-center gap-3 py-2 border-b border-[#1a2235] last:border-0">
-        <div class="w-1.5 h-1.5 rounded-full flex-shrink-0 ${statusDot(t.status)}"></div>
-        <p class="flex-1 text-xs text-white truncate ${t.status==='completed'?'line-through text-gray-500':''}">${esc(t.title)}</p>
-        <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusPill(t.status)}">${t.status}</span>
-      </div>
-    `).join('');
-  }
+  const done   = S.stats.tasks_done    || 0;
+  const todayM = S.stats.today_minutes || 0;
+  const weekM  = S.stats.week_minutes  || 0;
+  const score  = S.stats.productivity_score || 0;
+  document.getElementById('dash-stats').innerHTML = [
+    { label: 'Tasks Done',  value: done,          icon: 'check-circle', color: '#10b981' },
+    { label: 'Today',       value: fmtTime(todayM),icon: 'clock',       color: '#6366f1' },
+    { label: 'This Week',   value: fmtTime(weekM), icon: 'calendar',    color: '#a855f7' },
+    { label: 'Score',       value: score + '%',    icon: 'zap',         color: '#f59e0b' },
+  ].map(s => `
+    <div class="card stat-card">
+      <div style="color:${s.color}"><i data-lucide="${s.icon}" style="width:20px;height:20px"></i></div>
+      <div class="stat-value" style="color:${s.color}">${s.value}</div>
+      <div class="stat-label">${s.label}</div>
+    </div>
+  `).join('');
 
-  // Goal snapshot
-  const ge = document.getElementById('dash-goals');
-  if (!S.goals.length) {
-    ge.innerHTML = `<p class="text-center py-4 text-gray-600 text-xs">No goals set yet</p>`;
-  } else {
-    ge.innerHTML = S.goals.slice(0,5).map(g => {
-      const p = Math.min(100, g.target_value > 0 ? Math.round(g.current_value / g.target_value * 100) : 0);
-      return `
-        <div>
-          <div class="flex justify-between text-[10px] mb-1">
-            <span class="text-gray-400 truncate">${esc(g.title)}</span>
-            <span class="text-gray-500 ml-2 flex-shrink-0">${p}%</span>
-          </div>
-          <div class="w-full bg-[#1e2d45] rounded-full h-1">
-            <div class="progress-fill h-1 rounded-full ${p>=100?'bg-emerald-500':'bg-indigo-600'}" style="width:${p}%"></div>
-          </div>
-        </div>
-      `;
-    }).join('');
-  }
-  lucide.createIcons();
-}
-
-// ══════════════════════════════════════════════════════════
-// RENDER — TASKS
-// ══════════════════════════════════════════════════════════
-function renderTaskList() {
-  const el = document.getElementById('task-list');
-  if (!el) return;
-  const list = S.filter === 'all' ? S.tasks : S.tasks.filter(t => t.status === S.filter);
-
-  if (!list.length) {
-    el.innerHTML = `<p class="text-center py-12 text-gray-600 text-sm">No ${S.filter !== 'all' ? S.filter + ' ' : ''}tasks yet</p>`;
-    lucide.createIcons();
-    return;
-  }
-
-  el.innerHTML = list.map(t => {
-    const tm  = S.timers[t.id] || { remaining: t.time_limit*60, running: false, total: t.time_limit*60 };
-    const pct = Math.max(0, Math.min(100, (tm.remaining / tm.total) * 100));
-    const done = t.status === 'completed', exp = t.status === 'expired';
-    const ringColor = done ? '#10b981' : exp ? '#ef4444' : tm.running ? '#818cf8' : '#6366f1';
-
-    return `
-      <div class="task-card bento bg-[#111827] rounded-2xl p-5 ${tm.running ? 'timer-pulse border-indigo-500/40' : ''}">
-        <div class="flex items-center gap-4">
-
-          <!-- Circular timer ring -->
-          <div class="relative w-14 h-14 flex-shrink-0">
-            <svg class="w-14 h-14 -rotate-90" viewBox="0 0 36 36">
-              <circle cx="18" cy="18" r="15.9" fill="none" stroke="#1e2d45" stroke-width="2.5"/>
-              <circle id="tr-${t.id}" cx="18" cy="18" r="15.9" fill="none"
-                stroke="${ringColor}" stroke-width="2.5" stroke-linecap="round"
-                stroke-dasharray="100" stroke-dashoffset="${(100-pct).toFixed(2)}"
-                style="transition:stroke-dashoffset 1s linear;"/>
-            </svg>
-            <div class="absolute inset-0 flex items-center justify-center">
-              <span id="td-${t.id}" class="text-[11px] font-bold ${done?'text-emerald-400':exp?'text-red-400':'text-white'}">
-                ${done ? '✓' : exp ? '✕' : tmFormat(tm.remaining)}
-              </span>
-            </div>
-          </div>
-
-          <!-- Info -->
-          <div class="flex-1 min-w-0">
-            <div class="flex items-start justify-between gap-2 mb-1">
-              <h3 class="text-sm font-semibold text-white leading-snug ${done?'line-through text-gray-500':''} truncate">${esc(t.title)}</h3>
-              <div class="flex items-center gap-1.5 flex-shrink-0">
-                ${!done && !exp ? `
-                  ${!tm.running
-                    ? `<button onclick="tmStart(${t.id})" class="btn bg-indigo-600/20 hover:bg-indigo-600 border border-indigo-500/30 text-indigo-300 hover:text-white px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1"><i data-lucide="play" class="w-3 h-3"></i>Start</button>`
-                    : `<button onclick="tmPause(${t.id})" class="btn bg-yellow-500/20 hover:bg-yellow-500 border border-yellow-500/30 text-yellow-300 hover:text-white px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1"><i data-lucide="pause" class="w-3 h-3"></i>Pause</button>`
-                  }
-                  <button onclick="tmReset(${t.id})" title="Reset" class="btn w-7 h-7 bg-[#1a2235] hover:bg-[#243050] border border-[#1e2d45] text-gray-400 hover:text-white rounded-lg flex items-center justify-center"><i data-lucide="rotate-ccw" class="w-3 h-3"></i></button>
-                  <button onclick="completeTask(${t.id})" title="Mark complete" class="btn bg-emerald-600/20 hover:bg-emerald-600 border border-emerald-500/30 text-emerald-300 hover:text-white px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1"><i data-lucide="check" class="w-3 h-3"></i>Done</button>
-                ` : ''}
-                <button onclick="deleteTask(${t.id})" title="Delete" class="btn w-7 h-7 bg-[#1a2235] hover:bg-red-900/30 border border-[#1e2d45] hover:border-red-500/30 text-gray-500 hover:text-red-400 rounded-lg flex items-center justify-center"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
-              </div>
-            </div>
-            <div class="flex items-center gap-2 flex-wrap">
-              <span class="text-[10px] text-gray-500">${t.category}</span>
-              <span class="text-gray-700">·</span>
-              <span class="text-[10px] text-gray-500">${t.time_limit} min</span>
-              <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusPill(t.status)}">${t.status}</span>
-              ${t.time_spent > 0 ? `<span class="text-[10px] text-gray-600">${t.time_spent}m logged</span>` : ''}
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-  }).join('');
+  const recent = S.tasks.slice(0, 5);
+  document.getElementById('dash-tasks').innerHTML = recent.length
+    ? recent.map(miniTaskRow).join('')
+    : '<div class="text-slate-500 text-sm text-center py-4">No tasks yet. Add one below!</div>';
 
   lucide.createIcons();
 }
 
-// ══════════════════════════════════════════════════════════
-// RENDER — GOALS
-// ══════════════════════════════════════════════════════════
-function renderGoals() {
-  ['daily','weekly'].forEach(type => {
-    const list = S.goals.filter(g => g.type === type);
-    const el   = document.getElementById(`goals-${type}`);
-    if (!el) return;
-
-    if (!list.length) {
-      el.innerHTML = `<p class="text-center py-6 text-gray-600 text-xs">No ${type} goals — add one!</p>`;
-      return;
-    }
-
-    el.innerHTML = list.map(g => {
-      const pct   = Math.min(100, g.target_value > 0 ? Math.round(g.current_value / g.target_value * 100) : 0);
-      const done  = g.completed || g.current_value >= g.target_value;
-      return `
-        <div class="bento bg-[#111827] rounded-2xl p-5 ${done?'border-emerald-600/30':''}">
-          <div class="flex items-start justify-between mb-3">
-            <div class="flex items-center gap-2.5">
-              <div class="w-8 h-8 rounded-xl ${done?'bg-emerald-600/20':'bg-indigo-600/20'} flex items-center justify-center flex-shrink-0">
-                <i data-lucide="${done?'check-circle-2':'target'}" class="w-4 h-4 ${done?'text-emerald-400':'text-indigo-400'}"></i>
-              </div>
-              <div>
-                <p class="text-sm font-semibold text-white leading-snug">${esc(g.title)}</p>
-                <p class="text-[10px] text-gray-500 mt-0.5">${g.current_value} / ${g.target_value} ${g.unit}</p>
-              </div>
-            </div>
-            <div class="flex items-center gap-2">
-              <span class="text-sm font-bold ${done?'text-emerald-400':'text-indigo-400'}">${pct}%</span>
-              <button onclick="deleteGoal(${g.id})" class="w-6 h-6 rounded-lg bg-[#1a2235] flex items-center justify-center text-gray-600 hover:text-red-400 transition-colors">
-                <i data-lucide="x" class="w-3 h-3"></i>
-              </button>
-            </div>
-          </div>
-          <div class="w-full bg-[#1e2d45] rounded-full h-1.5 mb-3">
-            <div class="progress-fill h-1.5 rounded-full ${done?'bg-emerald-500':'bg-gradient-to-r from-indigo-600 to-violet-600'}" style="width:${pct}%"></div>
-          </div>
-          <div class="flex items-center gap-2">
-            <input type="number" id="gp-${g.id}" value="${g.current_value}" min="0" max="${g.target_value * 2}" step="0.5"
-              class="w-24 bg-[#1a2235] border border-[#1e2d45] focus:border-indigo-600 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none transition-colors">
-            <button onclick="updateGoalProgress(${g.id})" class="btn bg-indigo-600/20 hover:bg-indigo-600 border border-indigo-500/30 text-indigo-300 hover:text-white px-3 py-1.5 rounded-lg text-xs font-semibold">Update</button>
-            ${!done
-              ? `<button onclick="markGoalDone(${g.id})" class="btn bg-emerald-600/20 hover:bg-emerald-600 border border-emerald-500/30 text-emerald-300 hover:text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1"><i data-lucide="check" class="w-3 h-3"></i>Done</button>`
-              : `<span class="text-xs text-emerald-400 font-semibold">Completed!</span>`
-            }
-          </div>
-        </div>
-      `;
-    }).join('');
-  });
-  lucide.createIcons();
+function miniTaskRow(t) {
+  const color = t.category_color || '#334155';
+  return `
+    <div class="flex items-center gap-3 px-3 py-2 rounded-lg" style="background:#0d1a2e">
+      <div class="cat-dot" style="background:${color}"></div>
+      <span class="text-sm text-slate-200 flex-1 truncate">${esc(t.title)}</span>
+      <span class="badge" style="background:${statusColor(t.status)}22;color:${statusColor(t.status)};font-size:11px">${t.status}</span>
+    </div>
+  `;
 }
 
-// ══════════════════════════════════════════════════════════
-// RENDER — ANALYTICS
-// ══════════════════════════════════════════════════════════
-async function renderAnalytics() {
-  await loadStats();
-  const st = S.stats;
-
-  document.getElementById('a-score').textContent = st.productivity_score;
-  document.getElementById('a-hours').textContent = `${(st.week_minutes / 60).toFixed(1)}h`;
-  document.getElementById('a-done').textContent  = st.tasks_done;
-  document.getElementById('a-streak').textContent = st.streak;
-
-  // Weekly bar chart
-  if (S.charts.weekly) S.charts.weekly.destroy();
-  S.charts.weekly = new Chart(document.getElementById('chart-weekly').getContext('2d'), {
-    type: 'bar',
-    data: {
-      labels: st.weekly.map(d => d.label),
-      datasets: [{
-        data: st.weekly.map(d => +(d.minutes / 60).toFixed(2)),
-        backgroundColor: st.weekly.map((_, i) => i === st.weekly.length - 1 ? '#6366f1' : 'rgba(99,102,241,0.25)'),
-        borderRadius: 8,
-        borderSkipped: false,
-        hoverBackgroundColor: '#818cf8',
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: c => `${c.raw}h` }, backgroundColor: '#1a2235', borderColor: '#1e2d45', borderWidth: 1, titleColor: '#9ca3af', bodyColor: '#fff' },
-      },
-      scales: {
-        x: { grid: { color: '#1e2d4540' }, ticks: { color: '#4b5563', font: { size: 11 } } },
-        y: { grid: { color: '#1e2d4540' }, ticks: { color: '#4b5563', font: { size: 11 }, callback: v => `${v}h` }, beginAtZero: true },
-      }
-    }
-  });
-
-  // Category donut
-  if (S.charts.cat) S.charts.cat.destroy();
-  const cats    = st.categories;
-  const palette = ['#6366f1','#10b981','#a855f7','#f59e0b','#ef4444','#06b6d4','#ec4899'];
-
-  if (cats.length > 0) {
-    S.charts.cat = new Chart(document.getElementById('chart-cat').getContext('2d'), {
-      type: 'doughnut',
-      data: {
-        labels: cats.map(c => c.category),
-        datasets: [{
-          data: cats.map(c => c.total),
-          backgroundColor: palette.slice(0, cats.length),
-          borderWidth: 0,
-          hoverOffset: 6,
-        }]
-      },
-      options: {
-        responsive: true,
-        cutout: '72%',
-        plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { label: c => `${c.label}: ${c.raw} min` }, backgroundColor: '#1a2235', borderColor: '#1e2d45', borderWidth: 1, titleColor: '#9ca3af', bodyColor: '#fff' },
-        }
-      }
-    });
-    const total = cats.reduce((a, c) => a + c.total, 0);
-    document.getElementById('cat-legend').innerHTML = cats.map((c, i) => `
-      <div class="flex items-center gap-2">
-        <div class="w-2 h-2 rounded-sm flex-shrink-0" style="background:${palette[i]}"></div>
-        <span class="text-[10px] text-gray-400 flex-1 truncate">${c.category}</span>
-        <span class="text-[10px] text-gray-600">${total > 0 ? Math.round(c.total / total * 100) : 0}%</span>
-      </div>
-    `).join('');
-  } else {
-    document.getElementById('cat-legend').innerHTML = `<p class="text-[10px] text-gray-600 text-center">No data yet</p>`;
-  }
-}
-
-function renderAll() {
-  updateSidebar();
+async function quickAddTask(e) {
+  e.preventDefault();
+  const title = document.getElementById('quick-title').value.trim();
+  const cat   = document.getElementById('quick-cat').value;
+  if (!title) return;
+  const res = await api('POST', '/api/tasks', { title, category_id: cat || null, time_limit: 25 });
+  if (!res || res.error) { toast(res?.error || 'Error', 'error'); return; }
+  S.tasks.unshift(res);
+  document.getElementById('quick-title').value = '';
+  toast('Task added!', 'success');
   renderDashboard();
-  if (S.view === 'tasks') renderTaskList();
-  if (S.view === 'goals') renderGoals();
+  if (S.view === 'tasks') renderTasks();
+}
+
+// ══════════════════════════════════════════════════════════
+// TASKS
+// ══════════════════════════════════════════════════════════
+function renderTasks() {
+  const filterCat    = document.getElementById('task-filter-cat')?.value    || '';
+  const filterStatus = document.getElementById('task-filter-status')?.value || '';
+  let tasks = S.tasks;
+  if (filterCat)    tasks = tasks.filter(t => String(t.category_id) === filterCat);
+  if (filterStatus) tasks = tasks.filter(t => t.status === filterStatus);
+
+  document.getElementById('tasks-list').innerHTML = tasks.length
+    ? tasks.map(taskCard).join('')
+    : '<div class="card p-8 text-center text-slate-500">No tasks match the current filters.</div>';
+
+  tasks.forEach(t => {
+    const tmr = S.timers[t.id];
+    if (tmr) updateTimerDisplay(t.id, tmr.spent, t.time_limit * 60);
+  });
   lucide.createIcons();
 }
 
-// ══════════════════════════════════════════════════════════
-// TASK HANDLERS
-// ══════════════════════════════════════════════════════════
-async function handleQuickTask(e) {
-  e.preventDefault();
-  const title = document.getElementById('q-title').value.trim();
-  const errEl = document.getElementById('q-err');
-  if (!title) {
-    errEl.textContent = 'Please enter a task title';
-    errEl.classList.remove('hidden');
-    document.getElementById('q-title').focus();
-    setTimeout(() => errEl.classList.add('hidden'), 3000);
-    return;
-  }
-  errEl.classList.add('hidden');
-  const task = await api.post('/api/tasks', {
-    title,
-    category: document.getElementById('q-cat').value,
-    time_limit: Math.max(1, parseInt(document.getElementById('q-limit').value) || 25),
-  });
-  S.tasks.unshift(task);
-  tmInit(task);
-  document.getElementById('q-title').value = '';
-  toast('Task added!', 'ok');
-  await loadStats();
-  renderAll();
+function taskCard(t) {
+  const color   = t.category_color || '#334155';
+  const catName = t.category_name  || '';
+  const catIcon = t.category_icon  || '';
+  const r = 18, circ = 2 * Math.PI * r;
+  const spent  = (S.timers[t.id] ? S.timers[t.id].spent : t.time_spent) || 0;
+  const offset = circ * (1 - Math.min(1, spent / (t.time_limit * 60)));
+  const isRunning = !!(S.timers[t.id] && S.timers[t.id].running);
+  const isDone    = t.status === 'completed';
+
+  return `
+    <div class="task-card" id="task-${t.id}">
+      <div class="task-card-border" style="background:${color}"></div>
+      <div class="pl-3">
+        <div class="flex items-start gap-3">
+          <svg width="42" height="42" style="flex-shrink:0;transform:rotate(-90deg)">
+            <circle class="ring-bg" cx="21" cy="21" r="${r}"/>
+            <circle class="ring-fill ${isDone ? 'ring-complete' : isRunning ? 'ring-active' : 'ring-idle'}"
+              cx="21" cy="21" r="${r}"
+              stroke-dasharray="${circ.toFixed(1)}"
+              stroke-dashoffset="${offset.toFixed(1)}"
+              id="ring-fill-${t.id}"/>
+            <text x="21" y="25" text-anchor="middle" fill="#94a3b8" font-size="10" style="transform:rotate(90deg) translate(0,-42px)" id="ring-txt-${t.id}">${fmtSec(spent)}</text>
+          </svg>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-start justify-between gap-2">
+              <h4 class="font-medium text-sm ${isDone ? 'line-through text-slate-400' : 'text-white'} truncate">${esc(t.title)}</h4>
+              <span class="badge flex-shrink-0" style="background:${statusColor(t.status)}22;color:${statusColor(t.status)}">${t.status}</span>
+            </div>
+            ${catName ? `<div class="flex items-center gap-1 mt-1"><div class="cat-dot" style="background:${color}"></div><span class="text-xs text-slate-500">${catIcon} ${esc(catName)}</span></div>` : ''}
+            <div class="text-xs text-slate-500 mt-1">Limit: ${t.time_limit} min</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 mt-3 flex-wrap">
+          ${!isDone ? `
+            <button onclick="tmStart(${t.id},${t.time_limit})" class="btn btn-sm ${isRunning ? 'btn-secondary' : 'btn-primary'}" id="btn-start-${t.id}">
+              <i data-lucide="${isRunning ? 'pause' : 'play'}" style="width:13px;height:13px"></i> ${isRunning ? 'Pause' : 'Start'}
+            </button>
+            <button onclick="tmReset(${t.id})" class="btn btn-sm btn-secondary" title="Reset timer">
+              <i data-lucide="rotate-ccw" style="width:13px;height:13px"></i>
+            </button>
+            <button onclick="markDone(${t.id})" class="btn btn-sm btn-success">
+              <i data-lucide="check" style="width:13px;height:13px"></i> Done
+            </button>
+          ` : ''}
+          <button onclick='openTaskModal(${safeJson(t)})' class="btn btn-sm btn-secondary">
+            <i data-lucide="pencil" style="width:13px;height:13px"></i>
+          </button>
+          <button onclick="deleteTask(${t.id})" class="btn btn-sm btn-danger">
+            <i data-lucide="trash-2" style="width:13px;height:13px"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
-async function handleCreateTask(e) {
-  e.preventDefault();
-  const title = document.getElementById('t-title').value.trim();
-  if (!title) {
-    document.getElementById('t-title-err').classList.remove('hidden');
-    document.getElementById('t-title').focus();
-    return;
-  }
-  document.getElementById('t-title-err').classList.add('hidden');
-  const task = await api.post('/api/tasks', {
-    title,
-    category: document.getElementById('t-cat').value,
-    time_limit: Math.max(1, parseInt(document.getElementById('t-limit').value) || 25),
-  });
-  S.tasks.unshift(task);
-  tmInit(task);
-  closeTaskModal();
-  toast('Task created!', 'ok');
+async function markDone(id) {
+  if (S.timers[id]) tmPause(id);
+  const spent = (S.timers[id] ? S.timers[id].spent : (S.tasks.find(t => t.id === id) || {}).time_spent) || 0;
+  const res = await api('PUT', `/api/tasks/${id}`, { status: 'completed', time_spent: spent });
+  if (!res || res.error) { toast(res?.error || 'Error', 'error'); return; }
+  if (spent > 0) await api('POST', '/api/sessions', { task_id: id, duration: Math.round(spent / 60) });
+  clearTimer(id);
+  upsertTask(res);
+  toast(MSG_COMPLETE[Math.floor(Math.random() * MSG_COMPLETE.length)], 'success');
   await loadStats();
-  renderAll();
-}
-
-async function completeTask(id) {
-  const tm = S.timers[id];
-  if (tm) {
-    clearInterval(tm.intervalId);
-    const spent = Math.floor((tm.total - tm.remaining) / 60);
-    if (spent > 0) {
-      await api.post('/api/sessions', { task_id: id, duration: spent });
-      await api.put(`/api/tasks/${id}`, { time_spent: spent });
-    }
-    localStorage.removeItem(`st_tmr_${id}`);
-    tm.running = false;
-    tm.intervalId = null;
-  }
-  const updated = await api.put(`/api/tasks/${id}`, { status: 'completed' });
-  replaceTask(updated);
-  toast('Task completed!', 'ok');
-  await loadStats();
-  renderAll();
+  renderDashboard();
+  if (S.view === 'tasks') renderTasks();
 }
 
 async function deleteTask(id) {
-  const tm = S.timers[id];
-  if (tm) { clearInterval(tm.intervalId); delete S.timers[id]; }
-  localStorage.removeItem(`st_tmr_${id}`);
-  await api.del(`/api/tasks/${id}`);
+  clearTimer(id);
+  const res = await api('DELETE', `/api/tasks/${id}`);
+  if (!res || res.error) { toast(res?.error || 'Error', 'error'); return; }
   S.tasks = S.tasks.filter(t => t.id !== id);
-  toast('Task deleted', 'err');
-  await loadStats();
-  renderAll();
+  toast('Task deleted.', 'info');
+  if (S.view === 'tasks') renderTasks();
+  else renderDashboard();
 }
 
-function setFilter(f) {
-  S.filter = f;
-  document.querySelectorAll('.filter-pill').forEach(b => {
-    const on = b.id === `f-${f}`;
-    b.className = `filter-pill ${on ? 'bg-indigo-600 text-white' : 'bg-[#1a2235] text-gray-400 hover:text-white'} text-[11px] font-semibold px-3.5 py-1.5 rounded-lg transition-all`;
-  });
-  renderTaskList();
+function upsertTask(updated) {
+  const idx = S.tasks.findIndex(t => t.id === updated.id);
+  if (idx >= 0) S.tasks[idx] = updated; else S.tasks.unshift(updated);
 }
 
 // ══════════════════════════════════════════════════════════
-// GOAL HANDLERS
+// TIMERS
 // ══════════════════════════════════════════════════════════
-async function handleCreateGoal(e) {
-  e.preventDefault();
-  const title = document.getElementById('g-title').value.trim();
-  if (!title) {
-    document.getElementById('g-title-err').classList.remove('hidden');
-    document.getElementById('g-title').focus();
-    return;
+let _tick = null;
+
+function startTick() {
+  if (_tick) return;
+  _tick = setInterval(() => {
+    let any = false;
+    for (const id in S.timers) {
+      const t = S.timers[id];
+      if (!t.running) continue;
+      any = true;
+      t.spent++;
+      updateTimerDisplay(parseInt(id), t.spent, t.limit * 60);
+      if (t.spent >= t.limit * 60) {
+        tmPause(parseInt(id));
+        toast("Time's up! ⏰", 'info');
+      }
+    }
+    if (!any) { clearInterval(_tick); _tick = null; }
+  }, 1000);
+}
+
+function tmStart(id, limitMin) {
+  if (S.timers[id] && S.timers[id].running) { tmPause(id); return; }
+  if (!S.timers[id]) {
+    const saved = localStorage.getItem(`st_${S.user.id}_${id}`);
+    const task  = S.tasks.find(t => t.id === id) || {};
+    S.timers[id] = { spent: saved ? parseInt(saved) : (task.time_spent || 0), limit: limitMin, running: false };
   }
-  document.getElementById('g-title-err').classList.add('hidden');
-  const goal = await api.post('/api/goals', {
-    title,
-    type:         document.getElementById('g-type').value,
-    target_value: Math.max(1, parseFloat(document.getElementById('g-target').value) || 4),
-    unit:         document.getElementById('g-unit').value,
-  });
-  S.goals.unshift(goal);
-  closeGoalModal();
-  toast('Goal set!', 'ok');
-  renderAll();
+  S.timers[id].running = true;
+  S.timers[id].limit   = limitMin;
+  startTick();
+  const btn = document.getElementById(`btn-start-${id}`);
+  if (btn) btn.innerHTML = '<i data-lucide="pause" style="width:13px;height:13px"></i> Pause';
+  const fill = document.getElementById(`ring-fill-${id}`);
+  if (fill) fill.className.baseVal = 'ring-fill ring-active';
+  lucide.createIcons();
+}
+
+function tmPause(id) {
+  if (!S.timers[id]) return;
+  S.timers[id].running = false;
+  localStorage.setItem(`st_${S.user.id}_${id}`, S.timers[id].spent);
+  api('PUT', `/api/tasks/${id}`, { time_spent: S.timers[id].spent });
+  const btn = document.getElementById(`btn-start-${id}`);
+  if (btn) btn.innerHTML = '<i data-lucide="play" style="width:13px;height:13px"></i> Start';
+  const fill = document.getElementById(`ring-fill-${id}`);
+  if (fill) fill.className.baseVal = 'ring-fill ring-idle';
+  lucide.createIcons();
+}
+
+function tmReset(id) {
+  if (S.timers[id]) S.timers[id].running = false;
+  delete S.timers[id];
+  localStorage.removeItem(`st_${S.user.id}_${id}`);
+  api('PUT', `/api/tasks/${id}`, { time_spent: 0 });
+  const t = S.tasks.find(t => t.id === id);
+  if (t) t.time_spent = 0;
+  updateTimerDisplay(id, 0, (t ? t.time_limit : 25) * 60);
+  const btn = document.getElementById(`btn-start-${id}`);
+  if (btn) btn.innerHTML = '<i data-lucide="play" style="width:13px;height:13px"></i> Start';
+  lucide.createIcons();
+}
+
+function clearTimer(id) {
+  if (S.timers[id]) S.timers[id].running = false;
+  delete S.timers[id];
+  localStorage.removeItem(`st_${S.user?.id}_${id}`);
+}
+
+function updateTimerDisplay(id, spent, limitSec) {
+  const r = 18, circ = 2 * Math.PI * r;
+  const offset = circ * (1 - Math.min(1, spent / limitSec));
+  const fill = document.getElementById(`ring-fill-${id}`);
+  const txt  = document.getElementById(`ring-txt-${id}`);
+  if (fill) fill.setAttribute('stroke-dashoffset', offset.toFixed(1));
+  if (txt)  txt.textContent = fmtSec(spent);
+}
+
+// ══════════════════════════════════════════════════════════
+// CATEGORIES
+// ══════════════════════════════════════════════════════════
+function renderCategories() {
+  document.getElementById('categories-list').innerHTML = S.categories.length
+    ? S.categories.map(categoryCard).join('')
+    : '<div class="card p-8 text-center text-slate-500 col-span-2">No categories yet.</div>';
+  lucide.createIcons();
+}
+
+function categoryCard(c) {
+  const total = S.tasks.filter(t => t.category_id === c.id).length;
+  const done  = S.tasks.filter(t => t.category_id === c.id && t.status === 'completed').length;
+  const pct   = total > 0 ? Math.round(done / total * 100) : 0;
+  return `
+    <div class="card p-5" style="border-left:4px solid ${c.color}">
+      <div class="flex items-start justify-between mb-3">
+        <div class="flex items-center gap-3">
+          <span style="font-size:28px">${c.icon}</span>
+          <div>
+            <div class="font-semibold text-white">${esc(c.name)}</div>
+            <div class="text-xs text-slate-500 mt-0.5">${total} task${total !== 1 ? 's' : ''} · ${done} done</div>
+          </div>
+        </div>
+        <div class="w-4 h-4 rounded-full mt-1 flex-shrink-0" style="background:${c.color}"></div>
+      </div>
+      ${total > 0 ? `<div class="progress-bar mb-3"><div class="progress-fill" style="width:${pct}%;background:${c.color}"></div></div>` : ''}
+      <div class="flex gap-2">
+        <button onclick='openCategoryModal(${safeJson(c)})' class="btn btn-sm btn-secondary flex-1 justify-center">
+          <i data-lucide="pencil" style="width:13px;height:13px"></i> Edit
+        </button>
+        <button onclick="deleteCategory(${c.id})" class="btn btn-sm btn-danger">
+          <i data-lucide="trash-2" style="width:13px;height:13px"></i>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+async function deleteCategory(id) {
+  const res = await api('DELETE', `/api/categories/${id}`);
+  if (!res || res.error) { toast(res?.error || 'Error', 'error'); return; }
+  S.categories = S.categories.filter(c => c.id !== id);
+  S.tasks.forEach(t => { if (t.category_id === id) { t.category_id = null; t.category_name = null; t.category_color = null; t.category_icon = null; } });
+  populateCatDropdowns();
+  toast('Category deleted.', 'info');
+  renderCategories();
+}
+
+// ══════════════════════════════════════════════════════════
+// GOALS
+// ══════════════════════════════════════════════════════════
+function renderGoals() {
+  const daily  = S.goals.filter(g => g.type === 'daily');
+  const weekly = S.goals.filter(g => g.type === 'weekly');
+  document.getElementById('goals-daily').innerHTML  = daily.length  ? daily.map(goalCard).join('')  : '<div class="card p-6 text-center text-slate-500">No daily goals yet.</div>';
+  document.getElementById('goals-weekly').innerHTML = weekly.length ? weekly.map(goalCard).join('') : '<div class="card p-6 text-center text-slate-500">No weekly goals yet.</div>';
+  lucide.createIcons();
+}
+
+function goalCard(g) {
+  const pct  = Math.min(100, Math.round((g.current_value / g.target_value) * 100));
+  const done = !!g.completed;
+  return `
+    <div class="card p-5 ${done ? 'opacity-60' : ''}">
+      <div class="flex items-start justify-between mb-3">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2">
+            <span>${done ? '✅' : '🎯'}</span>
+            <h4 class="font-medium text-white ${done ? 'line-through' : ''} truncate">${esc(g.title)}</h4>
+          </div>
+          <div class="text-xs text-slate-400 mt-1">${g.current_value} / ${g.target_value} ${g.unit}</div>
+        </div>
+        <span class="text-sm font-bold ${pct >= 100 ? 'text-emerald-400' : 'text-indigo-400'}">${pct}%</span>
+      </div>
+      <div class="progress-bar mb-4">
+        <div class="progress-fill" style="width:${pct}%;background:${pct >= 100 ? '#10b981' : '#6366f1'}"></div>
+      </div>
+      <div class="flex items-center gap-2 flex-wrap">
+        <input type="number" value="${g.current_value}" min="0" max="${g.target_value * 2}" step="0.5"
+          class="input" style="width:80px;padding:6px 10px;font-size:13px" id="g-val-${g.id}">
+        <button onclick="updateGoalProgress(${g.id})" class="btn btn-sm btn-primary">Update</button>
+        <button onclick='openGoalModal(${safeJson(g)})' class="btn btn-sm btn-secondary">
+          <i data-lucide="pencil" style="width:13px;height:13px"></i>
+        </button>
+        <button onclick="deleteGoal(${g.id})" class="btn btn-sm btn-danger">
+          <i data-lucide="trash-2" style="width:13px;height:13px"></i>
+        </button>
+      </div>
+    </div>
+  `;
 }
 
 async function updateGoalProgress(id) {
-  const val = parseFloat(document.getElementById(`gp-${id}`).value) || 0;
-  const updated = await api.put(`/api/goals/${id}`, { current_value: val });
-  const i = S.goals.findIndex(g => g.id === id);
-  if (i !== -1) S.goals[i] = updated;
-  toast('Progress updated!', 'ok');
-  renderAll();
-}
-
-async function markGoalDone(id) {
-  const goal = S.goals.find(g => g.id === id);
-  if (!goal) return;
-  const updated = await api.put(`/api/goals/${id}`, { current_value: goal.target_value, completed: 1 });
-  const i = S.goals.findIndex(g => g.id === id);
-  if (i !== -1) S.goals[i] = updated;
-  toast('Goal completed!', 'ok');
-  renderAll();
+  const val = parseFloat(document.getElementById(`g-val-${id}`).value);
+  const g   = S.goals.find(g => g.id === id);
+  if (!g) return;
+  const completed = val >= g.target_value ? 1 : 0;
+  const res = await api('PUT', `/api/goals/${id}`, { current_value: val, completed });
+  if (!res || res.error) { toast(res?.error || 'Error', 'error'); return; }
+  const idx = S.goals.findIndex(g => g.id === id);
+  if (idx >= 0) S.goals[idx] = res;
+  if (completed && !g.completed) toast('Goal achieved! 🏆', 'success');
+  renderGoals();
 }
 
 async function deleteGoal(id) {
-  await api.del(`/api/goals/${id}`);
+  const res = await api('DELETE', `/api/goals/${id}`);
+  if (!res || res.error) { toast(res?.error || 'Error', 'error'); return; }
   S.goals = S.goals.filter(g => g.id !== id);
-  toast('Goal removed', 'err');
-  renderAll();
+  toast('Goal deleted.', 'info');
+  renderGoals();
+}
+
+// ══════════════════════════════════════════════════════════
+// ANALYTICS
+// ══════════════════════════════════════════════════════════
+function renderAnalytics() {
+  const stats = S.stats;
+  document.getElementById('score-value').textContent     = (stats.productivity_score || 0) + '%';
+  document.getElementById('score-breakdown').textContent = `${stats.tasks_done || 0} done · ${stats.tasks_pending || 0} pending · ${stats.tasks_expired || 0} expired`;
+  setTimeout(() => {
+    buildWeeklyChart();
+    buildCategoryChart();
+    buildTasksChart();
+  }, 50);
+}
+
+function buildWeeklyChart() {
+  const ctx = document.getElementById('chart-weekly').getContext('2d');
+  if (S.charts.weekly) S.charts.weekly.destroy();
+  const data = S.stats.weekly || [];
+  S.charts.weekly = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: data.map(d => d.label),
+      datasets: [{ data: data.map(d => d.minutes), backgroundColor: '#6366f133', borderColor: '#6366f1', borderWidth: 2, borderRadius: 6 }]
+    },
+    options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#64748b' }, grid: { color: '#1e2d45' } }, y: { ticks: { color: '#64748b', callback: v => `${v}m` }, grid: { color: '#1e2d45' } } } }
+  });
+}
+
+function buildCategoryChart() {
+  const ctx  = document.getElementById('chart-categories').getContext('2d');
+  if (S.charts.cats) S.charts.cats.destroy();
+  const cats = (S.stats.categories || []).filter(c => c.total > 0);
+  if (!cats.length) return;
+  S.charts.cats = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: cats.map(c => c.category),
+      datasets: [{ data: cats.map(c => c.total), backgroundColor: cats.map(c => c.color + 'bb'), borderColor: cats.map(c => c.color), borderWidth: 2 }]
+    },
+    options: { plugins: { legend: { labels: { color: '#94a3b8', boxWidth: 12 } } }, cutout: '65%' }
+  });
+}
+
+function buildTasksChart() {
+  const ctx = document.getElementById('chart-tasks').getContext('2d');
+  if (S.charts.tasksPie) S.charts.tasksPie.destroy();
+  S.charts.tasksPie = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Completed', 'Pending', 'Expired'],
+      datasets: [{ data: [S.stats.tasks_done || 0, S.stats.tasks_pending || 0, S.stats.tasks_expired || 0], backgroundColor: ['#10b98133', '#6366f133', '#ef444433'], borderColor: ['#10b981', '#6366f1', '#ef4444'], borderWidth: 2 }]
+    },
+    options: { plugins: { legend: { labels: { color: '#94a3b8', boxWidth: 12 } } }, cutout: '65%' }
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// PROFILE
+// ══════════════════════════════════════════════════════════
+function renderProfile() {
+  if (!S.user) return;
+  document.getElementById('profile-avatar-display').textContent = S.user.avatar || '🎓';
+  document.getElementById('profile-name-display').textContent   = S.user.username;
+  document.getElementById('profile-email-display').textContent  = S.user.email;
+  document.getElementById('profile-name').value = S.user.username;
+  const st = S.stats;
+  document.getElementById('profile-stats').innerHTML = [
+    ['🔥', 'Current Streak',       (st.streak || 0) + ' days'],
+    ['✅', 'Tasks Completed',      st.tasks_done || 0],
+    ['⚡', 'Productivity Score',   (st.productivity_score || 0) + '%'],
+    ['⏱️','Study Time This Week',   fmtTime(st.week_minutes || 0)],
+    ['📁', 'Categories',           S.categories.length],
+    ['🎯', 'Active Goals',         S.goals.filter(g => !g.completed).length],
+  ].map(([icon, label, val]) => `
+    <div class="flex items-center justify-between py-2 border-b border-[#1e2d45] last:border-0">
+      <span class="text-sm text-slate-400">${icon} ${label}</span>
+      <span class="text-sm font-semibold text-white">${val}</span>
+    </div>
+  `).join('');
+  lucide.createIcons();
+}
+
+async function saveProfile(e) {
+  e.preventDefault();
+  const body = {};
+  const name = document.getElementById('profile-name').value.trim();
+  const pass = document.getElementById('profile-pass').value;
+  if (name) body.username = name;
+  if (pass) body.password = pass;
+  if (S.pendingAvatar) body.avatar = S.pendingAvatar;
+  if (!Object.keys(body).length) { toast('Nothing to update.', 'info'); return; }
+  const res = await api('PUT', '/api/auth/profile', body);
+  if (!res || res.error) { toast(res?.error || 'Error', 'error'); return; }
+  S.user = res.user;
+  S.pendingAvatar = null;
+  document.getElementById('profile-pass').value = '';
+  updateSidebarUser();
+  renderProfile();
+  toast('Profile updated!', 'success');
+}
+
+// ══════════════════════════════════════════════════════════
+// ADMIN
+// ══════════════════════════════════════════════════════════
+async function renderAdmin() {
+  const [users, stats] = await Promise.all([
+    api('GET', '/api/admin/users'),
+    api('GET', '/api/admin/stats'),
+  ]);
+  if (!users || !stats) { toast('Failed to load admin data.', 'error'); return; }
+
+  document.getElementById('admin-stats').innerHTML = [
+    { label: 'Total Users',  value: stats.total_users,    icon: 'users',   color: '#6366f1' },
+    { label: 'Banned',       value: stats.banned_users,   icon: 'user-x',  color: '#ef4444' },
+    { label: 'Total Tasks',  value: stats.total_tasks,    icon: 'list',    color: '#10b981' },
+    { label: 'Sessions',     value: stats.total_sessions, icon: 'clock',   color: '#a855f7' },
+  ].map(s => `
+    <div class="card stat-card">
+      <div style="color:${s.color}"><i data-lucide="${s.icon}" style="width:20px;height:20px"></i></div>
+      <div class="stat-value" style="color:${s.color}">${s.value}</div>
+      <div class="stat-label">${s.label}</div>
+    </div>
+  `).join('');
+
+  document.getElementById('admin-users').innerHTML = users.map(u => `
+    <div class="user-row flex-wrap gap-y-2">
+      <span style="font-size:24px">${u.avatar || '🎓'}</span>
+      <div class="flex-1 min-w-0">
+        <div class="text-sm font-medium text-white truncate">
+          ${esc(u.username)}
+          ${u.user_type === 'admin' ? '<span class="badge ml-1" style="background:#1e3a5f;color:#93c5fd;font-size:10px">ADMIN</span>' : ''}
+          ${u.is_banned ? '<span class="badge ml-1" style="background:#7f1d1d;color:#fca5a5;font-size:10px">BANNED</span>' : ''}
+        </div>
+        <div class="text-xs text-slate-500">${esc(u.email)} · ${u.task_count} tasks</div>
+      </div>
+      ${u.user_type !== 'admin' ? `
+        <button onclick="adminBan(${u.id},this)" class="btn btn-sm ${u.is_banned ? 'btn-success' : 'btn-secondary'}">
+          ${u.is_banned ? 'Unban' : 'Ban'}
+        </button>
+        <button onclick="adminDelete(${u.id})" class="btn btn-sm btn-danger">
+          <i data-lucide="trash-2" style="width:13px;height:13px"></i>
+        </button>
+      ` : '<span class="text-xs text-slate-600">protected</span>'}
+    </div>
+  `).join('');
+  lucide.createIcons();
+}
+
+async function adminBan(uid, btn) {
+  const res = await api('POST', `/api/admin/users/${uid}/ban`);
+  if (!res || res.error) { toast(res?.error || 'Error', 'error'); return; }
+  toast(res.is_banned ? 'User banned.' : 'User unbanned.', 'info');
+  renderAdmin();
+}
+
+async function adminDelete(uid) {
+  if (!confirm('Delete this user and ALL their data? This cannot be undone.')) return;
+  const res = await api('DELETE', `/api/admin/users/${uid}`);
+  if (!res || res.error) { toast(res?.error || 'Error', 'error'); return; }
+  toast('User deleted.', 'info');
+  renderAdmin();
 }
 
 // ══════════════════════════════════════════════════════════
 // MODALS
 // ══════════════════════════════════════════════════════════
-function openTaskModal() {
-  document.getElementById('modal-task').classList.remove('hidden');
-  setTimeout(() => document.getElementById('t-title').focus(), 50);
-  lucide.createIcons();
-}
-function closeTaskModal() {
-  document.getElementById('modal-task').classList.add('hidden');
-  document.getElementById('task-form').reset();
-  document.getElementById('t-title-err').classList.add('hidden');
-}
-function openGoalModal() {
-  document.getElementById('modal-goal').classList.remove('hidden');
-  setTimeout(() => document.getElementById('g-title').focus(), 50);
-  lucide.createIcons();
-}
-function closeGoalModal() {
-  document.getElementById('modal-goal').classList.add('hidden');
-  document.getElementById('goal-form').reset();
-  document.getElementById('g-title-err').classList.add('hidden');
-}
-function openNameModal() {
-  document.getElementById('name-inp').value = S.name;
-  document.getElementById('modal-name').classList.remove('hidden');
-  setTimeout(() => document.getElementById('name-inp').focus(), 50);
-}
-function closeNameModal() {
-  document.getElementById('modal-name').classList.add('hidden');
-}
-function saveName() {
-  const n = document.getElementById('name-inp').value.trim();
-  if (!n) return;
-  S.name = n;
-  localStorage.setItem('st_name', n);
-  closeNameModal();
-  renderAll();
-  toast('Name updated!', 'ok');
+function openTaskModal(task) {
+  task = task || {};
+  document.getElementById('task-modal-title').textContent  = task.id ? 'Edit Task' : 'New Task';
+  document.getElementById('task-modal-id').value           = task.id || '';
+  document.getElementById('task-modal-title-input').value  = task.title || '';
+  document.getElementById('task-modal-limit').value        = task.time_limit || 25;
+  document.getElementById('task-modal-error').classList.add('hidden');
+  populateCatDropdowns();
+  setTimeout(() => {
+    const catEl = document.getElementById('task-modal-cat');
+    if (catEl && task.category_id) catEl.value = task.category_id;
+  }, 0);
+  document.getElementById('task-modal').classList.add('open');
 }
 
-// Escape key closes any open modal
-document.addEventListener('keydown', e => {
-  if (e.key !== 'Escape') return;
-  closeTaskModal();
-  closeGoalModal();
-  closeNameModal();
-});
+async function saveTask(e) {
+  e.preventDefault();
+  const errEl = document.getElementById('task-modal-error');
+  const id    = document.getElementById('task-modal-id').value;
+  const title = document.getElementById('task-modal-title-input').value.trim();
+  const catId = document.getElementById('task-modal-cat').value;
+  const limit = parseInt(document.getElementById('task-modal-limit').value) || 25;
+  if (!title) { errEl.textContent = 'Title is required'; errEl.classList.remove('hidden'); return; }
+  const body = { title, category_id: catId || null, time_limit: limit };
+  const res  = id ? await api('PUT', `/api/tasks/${id}`, body) : await api('POST', '/api/tasks', body);
+  if (!res || res.error) { errEl.textContent = res?.error || 'Error'; errEl.classList.remove('hidden'); return; }
+  upsertTask(res);
+  document.getElementById('task-modal').classList.remove('open');
+  toast(id ? 'Task updated!' : 'Task created!', 'success');
+  if (S.view === 'tasks') renderTasks(); else renderDashboard();
+}
+
+function openGoalModal(goal) {
+  goal = goal || {};
+  document.getElementById('goal-modal-title').textContent  = goal.id ? 'Edit Goal' : 'New Goal';
+  document.getElementById('goal-modal-id').value           = goal.id || '';
+  document.getElementById('goal-modal-title-input').value  = goal.title || '';
+  document.getElementById('goal-modal-type').value         = goal.type || 'daily';
+  document.getElementById('goal-modal-target').value       = goal.target_value || 4;
+  document.getElementById('goal-modal-unit').value         = goal.unit || 'tasks';
+  document.getElementById('goal-modal').classList.add('open');
+}
+
+async function saveGoal(e) {
+  e.preventDefault();
+  const id     = document.getElementById('goal-modal-id').value;
+  const title  = document.getElementById('goal-modal-title-input').value.trim();
+  const type   = document.getElementById('goal-modal-type').value;
+  const target = parseFloat(document.getElementById('goal-modal-target').value) || 4;
+  const unit   = document.getElementById('goal-modal-unit').value.trim() || 'tasks';
+  if (!title) return;
+  const body = { title, type, target_value: target, unit };
+  const res  = id ? await api('PUT', `/api/goals/${id}`, body) : await api('POST', '/api/goals', body);
+  if (!res || res.error) { toast(res?.error || 'Error', 'error'); return; }
+  const idx = S.goals.findIndex(g => g.id === res.id);
+  if (idx >= 0) S.goals[idx] = res; else S.goals.push(res);
+  document.getElementById('goal-modal').classList.remove('open');
+  toast(id ? 'Goal updated!' : 'Goal created!', 'success');
+  renderGoals();
+}
+
+function openCategoryModal(cat) {
+  cat = cat || {};
+  document.getElementById('cat-modal-title').textContent = cat.id ? 'Edit Category' : 'New Category';
+  document.getElementById('cat-modal-id').value          = cat.id || '';
+  document.getElementById('cat-modal-name').value        = cat.name || '';
+  document.getElementById('cat-modal-color').value       = cat.color || '#6366f1';
+  document.getElementById('cat-modal-icon').value        = cat.icon || '📚';
+  const selIcon = cat.icon || '📚';
+  document.getElementById('cat-icon-grid').innerHTML = CAT_ICONS.map(ic => `
+    <button type="button" onclick="selectCatIcon('${ic}',this)"
+      class="w-8 h-8 rounded-lg flex items-center justify-center text-lg hover:bg-[#1e3a5f] transition-colors"
+      style="${selIcon === ic ? 'background:#1e3a5f' : ''}">${ic}</button>
+  `).join('');
+  document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
+  document.getElementById('cat-modal').classList.add('open');
+}
+
+function selectCatIcon(icon, btn) {
+  document.getElementById('cat-modal-icon').value = icon;
+  document.querySelectorAll('#cat-icon-grid button').forEach(b => b.style.background = '');
+  btn.style.background = '#1e3a5f';
+}
+
+function setCatColor(hex, el) {
+  document.getElementById('cat-modal-color').value = hex;
+  document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
+  if (el) el.classList.add('selected');
+}
+
+async function saveCategory(e) {
+  e.preventDefault();
+  const id    = document.getElementById('cat-modal-id').value;
+  const name  = document.getElementById('cat-modal-name').value.trim();
+  const color = document.getElementById('cat-modal-color').value;
+  const icon  = document.getElementById('cat-modal-icon').value;
+  if (!name) return;
+  const res = id
+    ? await api('PUT', `/api/categories/${id}`, { name, color, icon })
+    : await api('POST', '/api/categories', { name, color, icon });
+  if (!res || res.error) { toast(res?.error || 'Error', 'error'); return; }
+  const idx = S.categories.findIndex(c => c.id === res.id);
+  if (idx >= 0) S.categories[idx] = res; else S.categories.push(res);
+  populateCatDropdowns();
+  document.getElementById('cat-modal').classList.remove('open');
+  toast(id ? 'Category updated!' : 'Category created!', 'success');
+  renderCategories();
+}
+
+function openAvatarPicker() {
+  const cur = S.user?.avatar;
+  document.getElementById('avatar-grid').innerHTML = AVATARS.map(av => `
+    <button type="button" onclick="selectAvatar('${av}')"
+      class="w-12 h-12 rounded-xl flex items-center justify-center transition-colors hover:bg-[#1e3a5f]"
+      style="font-size:28px;${cur === av ? 'background:#1e3a5f;outline:2px solid #6366f1;' : ''}">${av}</button>
+  `).join('');
+  document.getElementById('avatar-modal').classList.add('open');
+}
+
+function selectAvatar(av) {
+  S.pendingAvatar = av;
+  document.getElementById('profile-avatar-display').textContent = av;
+  document.getElementById('avatar-modal').classList.remove('open');
+  toast('Avatar selected! Hit Save Changes.', 'info');
+}
+
+// ══════════════════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════════════════
+function toast(msg, type = 'success') {
+  const box = document.getElementById('toast-box');
+  const el  = document.createElement('div');
+  el.className = `toast-item toast-${type}`;
+  el.textContent = msg;
+  box.appendChild(el);
+  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('show')));
+  setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 350); }, 3500);
+}
 
 // ══════════════════════════════════════════════════════════
 // UTILITIES
 // ══════════════════════════════════════════════════════════
-function statusDot(s) {
-  return { pending:'bg-yellow-400', active:'bg-indigo-400', completed:'bg-emerald-500', expired:'bg-red-500' }[s] || 'bg-gray-500';
-}
-function statusPill(s) {
-  return {
-    pending:   'bg-yellow-500/10 text-yellow-400',
-    active:    'bg-indigo-500/10 text-indigo-400',
-    completed: 'bg-emerald-500/10 text-emerald-400',
-    expired:   'bg-red-500/10 text-red-400',
-  }[s] || 'bg-gray-500/10 text-gray-400';
-}
 function esc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-let _toastTimer;
-function toast(msg, type = 'ok') {
-  const el  = document.getElementById('toast');
-  const dot = document.getElementById('toast-dot');
-  document.getElementById('toast-msg').textContent = msg;
-  dot.className = `w-2 h-2 rounded-full flex-shrink-0 ${type==='ok'?'bg-emerald-400':type==='warn'?'bg-yellow-400':'bg-red-400'}`;
-  el.classList.remove('hidden');
-  clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(() => el.classList.add('hidden'), 2600);
+function safeJson(obj) {
+  return JSON.stringify(obj).replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+}
+
+function fmtSec(s) {
+  s = Math.round(s || 0);
+  return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
+}
+
+function fmtTime(minutes) {
+  if (!minutes || minutes < 1) return '0m';
+  const h = Math.floor(minutes / 60), m = minutes % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+function statusColor(s) {
+  return { pending: '#6366f1', completed: '#10b981', expired: '#ef4444' }[s] || '#64748b';
 }
 
 // ══════════════════════════════════════════════════════════
-// INIT
+// BOOT
 // ══════════════════════════════════════════════════════════
-document.addEventListener('DOMContentLoaded', () => {
-  lucide.createIcons();
-  loadAll();
-});
-
-window.addEventListener('beforeunload', () => {
-  Object.entries(S.timers).forEach(([id, tm]) => {
-    if (tm.running) tmSave(Number(id));
-  });
+document.addEventListener('DOMContentLoaded', async () => {
+  await initAuth();
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
 });
 </script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js', { scope: '/' })
-          .catch(err => console.warn('SW failed:', err));
-      });
-    }
-  </script>
 </body>
 </html>
