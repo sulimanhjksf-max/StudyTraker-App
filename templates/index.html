@@ -99,7 +99,8 @@
   .stat-label{font-size:13px;color:#64748b}
   @media(max-width:600px){.stat-card{padding:14px}.stat-value{font-size:22px}}
   .user-row{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:12px;background:#0d1a2e;border:1px solid #1e2d45}
-  .view-scroll{padding:24px;overflow-y:auto;padding-bottom:max(24px,env(safe-area-inset-bottom))}
+  .view-scroll{padding:24px;overflow-y:auto;padding-bottom:max(24px,env(safe-area-inset-bottom));transition:opacity .18s}
+  .view-scroll.loading{opacity:0;pointer-events:none}
   @media(max-width:768px){.view-scroll{padding:16px;padding-bottom:calc(24px + env(safe-area-inset-bottom))}}
   .task-card{border-radius:14px;padding:16px;background:#111827;border:1px solid #1e2d45;position:relative;overflow:hidden;transition:transform .1s}
   .task-card:hover{transform:translateY(-1px)}
@@ -365,7 +366,22 @@
         </div>
         <div class="bento mb-5" id="admin-stats"></div>
         <div class="card p-5">
-          <h3 class="font-semibold text-white mb-4">All Users</h3>
+          <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+            <h3 class="font-semibold text-white">All Users</h3>
+            <span class="text-sm text-slate-400" id="admin-user-count"></span>
+          </div>
+          <div class="flex gap-3 mb-4 flex-wrap">
+            <input type="text" id="admin-search" class="input flex-1" style="min-width:160px;font-size:14px"
+              placeholder="Search name or email…"
+              oninput="_adminSearch=this.value;_renderUserList(window._adminUsers)">
+            <select id="admin-sort" class="input" style="width:auto;cursor:pointer;font-size:14px"
+              onchange="_adminSort=this.value;_renderUserList(window._adminUsers)">
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="tasks">Most tasks</option>
+              <option value="az">A → Z</option>
+            </select>
+          </div>
           <div id="admin-users" class="space-y-3"></div>
         </div>
       </div>
@@ -547,6 +563,10 @@ const S = {
   pendingAvatar: null,
 };
 
+// Admin table state — persists across re-renders
+let _adminSearch = '';
+let _adminSort   = 'newest';
+
 // ══════════════════════════════════════════════════════════
 // API
 // ══════════════════════════════════════════════════════════
@@ -670,6 +690,8 @@ function buildNav() {
 
 function nav(view) {
   S.view = view;
+  // Persist last view so users return to the same place on reload
+  try { localStorage.setItem('st_last_view', view); } catch(_) {}
   ['dashboard','tasks','categories','goals','analytics','profile','admin'].forEach(v => {
     const el = document.getElementById('view-' + v);
     if (el) el.classList.toggle('hidden', v !== view);
@@ -704,7 +726,10 @@ function updateSidebarUser() {
   document.getElementById('sidebar-name').textContent  = S.user.username;
   document.getElementById('topbar-avatar').innerHTML   = avatarHtml(S.user.avatar, 32);
   const streak = (S.stats && S.stats.streak) || 0;
-  document.getElementById('sidebar-streak').textContent = streak + ' day streak';
+  document.getElementById('sidebar-streak').textContent =
+    streak === 0 ? 'No streak yet' :
+    streak === 1 ? '🔥 1 day streak' :
+                   `🔥 ${streak} days streak`;
 }
 
 function openSidebar()  { document.getElementById('sidebar').classList.add('open'); document.getElementById('overlay').style.display = 'block'; }
@@ -714,6 +739,10 @@ function closeSidebar() { document.getElementById('sidebar').classList.remove('o
 // DATA
 // ══════════════════════════════════════════════════════════
 async function loadAll() {
+  // Fade out content while fetching to prevent flash of stale/empty data
+  const vc = document.getElementById('view-container');
+  vc.classList.add('loading');
+
   const [tasks, cats, goals, stats] = await Promise.all([
     api('GET', '/api/tasks'),
     api('GET', '/api/categories'),
@@ -724,9 +753,22 @@ async function loadAll() {
   S.categories = cats   || [];
   S.goals      = goals  || [];
   S.stats      = stats  || {};
+
+  // Restore the last active view from localStorage (skip admin for non-admins)
+  try {
+    const saved = localStorage.getItem('st_last_view');
+    const isAdmin = S.user && S.user.user_type === 'admin';
+    if (saved && (saved !== 'admin' || isAdmin) && document.getElementById('view-' + saved)) {
+      S.view = saved;
+    }
+  } catch(_) {}
+
   populateCatDropdowns();
   updateSidebarUser();
   nav(S.view);
+
+  // Fade content back in once everything is rendered
+  requestAnimationFrame(() => vc.classList.remove('loading'));
 }
 
 async function loadStats() {
@@ -1249,10 +1291,12 @@ async function renderAdmin() {
   if (!users || !stats) { toast('Failed to load admin data.', 'error'); return; }
 
   document.getElementById('admin-stats').innerHTML = [
-    { label: 'Total Users',  value: stats.total_users,    icon: 'users',   color: '#6366f1' },
-    { label: 'Banned',       value: stats.banned_users,   icon: 'user-x',  color: '#ef4444' },
-    { label: 'Total Tasks',  value: stats.total_tasks,    icon: 'list',    color: '#10b981' },
-    { label: 'Sessions',     value: stats.total_sessions, icon: 'clock',   color: '#a855f7' },
+    { label: 'Users',      value: stats.total_users,      icon: 'users',        color: '#6366f1' },
+    { label: 'Banned',     value: stats.banned_users,     icon: 'user-x',       color: '#ef4444' },
+    { label: 'Tasks',      value: stats.total_tasks,      icon: 'check-square', color: '#10b981' },
+    { label: 'Done',       value: stats.completed_tasks,  icon: 'check-circle', color: '#06b6d4' },
+    { label: 'Sessions',   value: stats.total_sessions,   icon: 'clock',        color: '#a855f7' },
+    { label: 'Categories', value: stats.total_categories, icon: 'tag',          color: '#f59e0b' },
   ].map(s => `
     <div class="card stat-card">
       <div style="color:${s.color}"><i data-lucide="${s.icon}" style="width:20px;height:20px"></i></div>
@@ -1261,43 +1305,99 @@ async function renderAdmin() {
     </div>
   `).join('');
 
-  document.getElementById('admin-users').innerHTML = users.map(u => `
-    <div class="user-row flex-wrap gap-y-2">
-      <span style="font-size:24px">${u.avatar || '🎓'}</span>
-      <div class="flex-1 min-w-0">
-        <div class="text-sm font-medium text-white truncate">
-          ${esc(u.username)}
-          ${u.user_type === 'admin' ? '<span class="badge ml-1" style="background:#1e3a5f;color:#93c5fd;font-size:10px">ADMIN</span>' : ''}
-          ${u.is_banned ? '<span class="badge ml-1" style="background:#7f1d1d;color:#fca5a5;font-size:10px">BANNED</span>' : ''}
-        </div>
-        <div class="text-xs text-slate-500">${esc(u.email)} · ${u.task_count} tasks</div>
-      </div>
-      ${u.user_type !== 'admin' ? `
-        <button onclick="adminBan(${u.id},this)" class="btn btn-sm ${u.is_banned ? 'btn-success' : 'btn-secondary'}">
-          ${u.is_banned ? 'Unban' : 'Ban'}
-        </button>
-        <button onclick="adminDelete(${u.id})" class="btn btn-sm btn-danger">
-          <i data-lucide="trash-2" style="width:13px;height:13px"></i>
-        </button>
-      ` : '<span class="text-xs text-slate-600">protected</span>'}
-    </div>
-  `).join('');
+  // Store users globally so search/sort can filter without re-fetching
+  window._adminUsers = users;
+
+  // Restore search/sort control values (preserved across re-renders)
+  const searchEl = document.getElementById('admin-search');
+  const sortEl   = document.getElementById('admin-sort');
+  if (searchEl) searchEl.value = _adminSearch;
+  if (sortEl)   sortEl.value   = _adminSort;
+
+  _renderUserList(users);
   lucide.createIcons();
 }
 
-async function adminBan(uid, btn) {
+function _renderUserList(users) {
+  if (!users) return;
+  const q = _adminSearch.toLowerCase().trim();
+
+  // Filter by search query
+  let list = q ? users.filter(u =>
+    u.username.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+  ) : [...users];
+
+  // Sort
+  if      (_adminSort === 'oldest') list.sort((a, b) => a.id - b.id);
+  else if (_adminSort === 'tasks')  list.sort((a, b) => b.task_count - a.task_count);
+  else if (_adminSort === 'az')     list.sort((a, b) => a.username.localeCompare(b.username));
+  else                              list.sort((a, b) => b.id - a.id); // newest
+
+  const countEl = document.getElementById('admin-user-count');
+  if (countEl) countEl.textContent = q
+    ? `${list.length} of ${users.length} users`
+    : `${users.length} user${users.length !== 1 ? 's' : ''}`;
+
+  const listEl = document.getElementById('admin-users');
+  if (!listEl) return;
+
+  if (!list.length) {
+    listEl.innerHTML = `<div class="text-center py-8 text-slate-500">No users match "${esc(q)}"</div>`;
+    return;
+  }
+
+  listEl.innerHTML = list.map(u => `
+    <div class="user-row flex-wrap gap-y-2" id="urow-${u.id}">
+      <div class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+           style="background:#1e2d45;font-size:22px">${u.avatar && u.avatar.startsWith('data:')
+        ? `<img src="${u.avatar}" style="width:40px;height:40px;border-radius:50%;object-fit:cover">`
+        : (u.avatar || '🎓')}</div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-sm font-semibold text-white truncate">${esc(u.username)}</span>
+          ${u.user_type === 'admin' ? '<span class="badge" style="background:#1e3a5f;color:#93c5fd;font-size:10px">ADMIN</span>' : ''}
+          ${u.is_banned         ? '<span class="badge" style="background:#7f1d1d;color:#fca5a5;font-size:10px">BANNED</span>' : ''}
+        </div>
+        <div class="text-xs text-slate-500 truncate">${esc(u.email)}</div>
+        <div class="flex items-center gap-3 mt-1 flex-wrap">
+          <span class="text-xs text-slate-500">✅ ${u.task_count} tasks</span>
+          <span class="text-xs text-slate-500">⏱ ${u.session_count || 0} sessions</span>
+          <span class="text-xs text-slate-500">🎯 ${u.goal_count || 0} goals</span>
+        </div>
+      </div>
+      ${u.user_type !== 'admin' ? `
+        <div class="flex gap-2 flex-shrink-0">
+          <button onclick="adminBan(${u.id})" class="btn btn-sm ${u.is_banned ? 'btn-success' : 'btn-secondary'}">
+            ${u.is_banned ? 'Unban' : 'Ban'}
+          </button>
+          <button onclick="adminDelete(${u.id})" class="btn btn-sm btn-danger">
+            <i data-lucide="trash-2" style="width:13px;height:13px"></i>
+          </button>
+        </div>
+      ` : '<span class="text-xs text-slate-600 self-center">protected</span>'}
+    </div>
+  `).join('');
+
+  lucide.createIcons();
+}
+
+async function adminBan(uid) {
   const res = await api('POST', `/api/admin/users/${uid}/ban`);
   if (!res || res.error) { toast(res?.error || 'Error', 'error'); return; }
+  // Update local data and re-render without a network round-trip
+  const u = (window._adminUsers || []).find(u => u.id === uid);
+  if (u) { u.is_banned = res.is_banned ? 1 : 0; _renderUserList(window._adminUsers); }
   toast(res.is_banned ? 'User banned.' : 'User unbanned.', 'info');
-  renderAdmin();
 }
 
 async function adminDelete(uid) {
   if (!confirm('Delete this user and ALL their data? This cannot be undone.')) return;
   const res = await api('DELETE', `/api/admin/users/${uid}`);
   if (!res || res.error) { toast(res?.error || 'Error', 'error'); return; }
+  // Remove from local data and re-render without a network round-trip
+  window._adminUsers = (window._adminUsers || []).filter(u => u.id !== uid);
+  _renderUserList(window._adminUsers);
   toast('User deleted.', 'info');
-  renderAdmin();
 }
 
 // ══════════════════════════════════════════════════════════

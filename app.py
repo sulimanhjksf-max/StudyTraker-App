@@ -576,12 +576,20 @@ def get_stats():
         """, (uid,)).fetchall()
         cats = [_r2d(r) for r in cats if _int(r['total'] if r else 0) > 0]
 
-        streak, check = 0, datetime.now()
+        # Single query for all session dates — O(1) instead of up to 366 queries
+        year_ago  = (datetime.now() - timedelta(days=366)).strftime('%Y-%m-%d')
+        date_rows = db.execute(
+            "SELECT DISTINCT CAST(date AS TEXT) as d FROM study_sessions WHERE user_id=? AND CAST(date AS TEXT)>=?",
+            (uid, year_ago)).fetchall()
+        session_dates = {r['d'] for r in date_rows}
+
+        streak = 0
+        check  = datetime.now()
+        # Don't penalise for not having studied yet today — start from yesterday if today is empty
+        if check.strftime('%Y-%m-%d') not in session_dates:
+            check -= timedelta(days=1)
         for _ in range(366):
-            row = db.execute(
-                "SELECT COUNT(*) as n FROM study_sessions WHERE user_id=? AND CAST(date AS TEXT)=?",
-                (uid, check.strftime('%Y-%m-%d'))).fetchone()
-            if row and _int(row['n']) > 0:
+            if check.strftime('%Y-%m-%d') in session_dates:
                 streak += 1
                 check -= timedelta(days=1)
             else:
@@ -616,10 +624,12 @@ def admin_stats():
         def cnt(sql):
             return _int((db.execute(sql).fetchone() or {}).get('n', 0))
         return jsonify({
-            'total_users':    cnt("SELECT COUNT(*) as n FROM users"),
-            'banned_users':   cnt("SELECT COUNT(*) as n FROM users WHERE is_banned=1"),
-            'total_tasks':    cnt("SELECT COUNT(*) as n FROM tasks"),
-            'total_sessions': cnt("SELECT COUNT(*) as n FROM study_sessions"),
+            'total_users':      cnt("SELECT COUNT(*) as n FROM users"),
+            'banned_users':     cnt("SELECT COUNT(*) as n FROM users WHERE is_banned=1"),
+            'total_tasks':      cnt("SELECT COUNT(*) as n FROM tasks"),
+            'completed_tasks':  cnt("SELECT COUNT(*) as n FROM tasks WHERE status='completed'"),
+            'total_sessions':   cnt("SELECT COUNT(*) as n FROM study_sessions"),
+            'total_categories': cnt("SELECT COUNT(*) as n FROM categories"),
         })
 
 
@@ -630,7 +640,9 @@ def admin_get_users():
         users = db.execute("""
             SELECT u.id, u.username, u.email, u.user_type, u.avatar,
                    u.is_banned, u.created_at,
-                   (SELECT COUNT(*) FROM tasks WHERE user_id=u.id) as task_count
+                   (SELECT COUNT(*) FROM tasks         WHERE user_id=u.id) as task_count,
+                   (SELECT COUNT(*) FROM study_sessions WHERE user_id=u.id) as session_count,
+                   (SELECT COUNT(*) FROM goals          WHERE user_id=u.id) as goal_count
             FROM users u ORDER BY u.id DESC
         """).fetchall()
     return jsonify([_r2d(u) for u in users])
