@@ -185,20 +185,30 @@ def _seed_default_cats(db, uid):
                       (uid, name, color, icon))
 
 def init_db():
+    # 1 — Create tables (own transaction)
     with get_db() as db:
         if USE_PG:
             for stmt in _PG_SCHEMA:
                 db.execute(stmt)
-            # Additive migration — safe to run every boot
-            db.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS task_type TEXT DEFAULT 'general'")
         else:
             db._cn.executescript(_SQ_SCHEMA)
-            # SQLite has no IF NOT EXISTS for ADD COLUMN — catch the duplicate error
-            try:
-                db.execute("ALTER TABLE tasks ADD COLUMN task_type TEXT DEFAULT 'general'")
-            except Exception:
-                pass
-        # Seed admin
+
+    # 2 — Additive column migration (own transaction so a failure here
+    #     doesn't roll back the table creation above)
+    try:
+        with get_db() as db:
+            if USE_PG:
+                db.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS task_type TEXT DEFAULT 'general'")
+            else:
+                try:
+                    db.execute("ALTER TABLE tasks ADD COLUMN task_type TEXT DEFAULT 'general'")
+                except Exception:
+                    pass
+    except Exception:
+        pass  # column already exists or DB doesn't support it — safe to continue
+
+    # 3 — Seed admin account (own transaction)
+    with get_db() as db:
         admin = db.execute("SELECT id FROM users WHERE email=?",
                            ('sulimanhjksf@gmail.com',)).fetchone()
         if not admin:
@@ -209,7 +219,6 @@ def init_db():
             )
             _seed_default_cats(db, uid)
         else:
-            # Ensure existing account always has admin privileges
             db.execute(
                 "UPDATE users SET user_type='admin', avatar='👑' WHERE email=?",
                 ('sulimanhjksf@gmail.com',)
