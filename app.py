@@ -555,7 +555,7 @@ def update_goal(gid):
     d = request.json or {}
     uid = session['user_id']
     sets, vals = [], []
-    for f in ('title', 'current_value', 'target_value', 'completed'):
+    for f in ('title', 'type', 'current_value', 'target_value', 'unit', 'completed'):
         if f in d:
             sets.append(f'{f}=?'); vals.append(d[f])
     if not sets:

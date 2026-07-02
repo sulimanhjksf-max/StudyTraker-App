@@ -6,6 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
+<script>(function(){if(location.pathname==='/'&&!location.search.includes('v4')){location.replace('/?v4');}})();</script>
 <title>StudyTrack — Productivity</title>
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#6366f1">
@@ -474,6 +475,7 @@
       </button>
     </div>
     <form onsubmit="saveGoal(event)" class="space-y-4">
+      <p id="goal-modal-error" class="hidden text-red-400 text-sm bg-red-900/30 rounded px-3 py-2"></p>
       <input type="hidden" id="goal-modal-id">
       <div>
         <label class="block text-xs text-slate-400 mb-2 uppercase tracking-wide">Goal Title</label>
@@ -1510,25 +1512,35 @@ function openGoalModal(goal) {
   document.getElementById('goal-modal-type').value         = goal.type || 'daily';
   document.getElementById('goal-modal-target').value       = goal.target_value || 4;
   document.getElementById('goal-modal-unit').value         = goal.unit || 'tasks';
+  document.getElementById('goal-modal-error').classList.add('hidden');
   document.getElementById('goal-modal').classList.add('open');
 }
 
 async function saveGoal(e) {
   e.preventDefault();
-  const id     = document.getElementById('goal-modal-id').value;
-  const title  = document.getElementById('goal-modal-title-input').value.trim();
-  const type   = document.getElementById('goal-modal-type').value;
-  const target = parseFloat(document.getElementById('goal-modal-target').value) || 4;
-  const unit   = document.getElementById('goal-modal-unit').value.trim() || 'tasks';
-  if (!title) return;
-  const body = { title, type, target_value: target, unit };
-  const res  = id ? await api('PUT', `/api/goals/${id}`, body) : await api('POST', '/api/goals', body);
-  if (!res || res.error) { toast(res?.error || 'Error', 'error'); return; }
-  const idx = S.goals.findIndex(g => g.id === res.id);
-  if (idx >= 0) S.goals[idx] = res; else S.goals.push(res);
-  document.getElementById('goal-modal').classList.remove('open');
-  toast(id ? 'Goal updated!' : 'Goal created!', 'success');
-  renderGoals();
+  const errEl = document.getElementById('goal-modal-error');
+  errEl.classList.add('hidden');
+  try {
+    const id     = document.getElementById('goal-modal-id').value;
+    const title  = document.getElementById('goal-modal-title-input').value.trim();
+    const type   = document.getElementById('goal-modal-type').value;
+    const target = parseFloat(document.getElementById('goal-modal-target').value) || 4;
+    const unit   = document.getElementById('goal-modal-unit').value.trim() || 'tasks';
+    if (!title) { errEl.textContent = 'Title is required'; errEl.classList.remove('hidden'); return; }
+    const body = { title, type, target_value: target, unit };
+    const res  = id ? await api('PUT', `/api/goals/${id}`, body) : await api('POST', '/api/goals', body);
+    if (!res) return;
+    if (res.error) { errEl.textContent = res.error; errEl.classList.remove('hidden'); return; }
+    const idx = S.goals.findIndex(g => g.id === res.id);
+    if (idx >= 0) S.goals[idx] = res; else S.goals.push(res);
+    document.getElementById('goal-modal').classList.remove('open');
+    toast(id ? 'Goal updated!' : 'Goal created!', 'success');
+    renderGoals();
+  } catch (err) {
+    errEl.textContent = 'Error: ' + err.message;
+    errEl.classList.remove('hidden');
+    toast('Save failed: ' + err.message, 'error');
+  }
 }
 
 function openCategoryModal(cat) {
