@@ -260,7 +260,11 @@ def _int(v):
 # ── Pages ────────────────────────────────────────────────────
 @app.route('/')
 def index():
-    return render_template('index.html')
+    from flask import make_response
+    resp = make_response(render_template('index.html'))
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    resp.headers['Pragma'] = 'no-cache'
+    return resp
 
 @app.route('/manifest.json')
 def pwa_manifest():
@@ -460,10 +464,17 @@ def create_task():
     if task_type not in ('general', 'study'):
         task_type = 'general'
     with get_db() as db:
-        tid = db.insert(
-            "INSERT INTO tasks (user_id,title,category_id,time_limit,task_type) VALUES (?,?,?,?,?)",
-            (uid, title, d.get('category_id') or None, _int(d.get('time_limit', 25)), task_type)
-        )
+        try:
+            tid = db.insert(
+                "INSERT INTO tasks (user_id,title,category_id,time_limit,task_type) VALUES (?,?,?,?,?)",
+                (uid, title, d.get('category_id') or None, _int(d.get('time_limit', 25)), task_type)
+            )
+        except Exception:
+            db.rollback()
+            tid = db.insert(
+                "INSERT INTO tasks (user_id,title,category_id,time_limit) VALUES (?,?,?,?)",
+                (uid, title, d.get('category_id') or None, _int(d.get('time_limit', 25)))
+            )
         row = db.execute(_TASK_SQL + "WHERE t.id=?", (tid,)).fetchone()
     return jsonify(_r2d(row)), 201
 

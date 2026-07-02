@@ -1482,19 +1482,28 @@ function openTaskModal(task) {
 async function saveTask(e) {
   e.preventDefault();
   const errEl = document.getElementById('task-modal-error');
-  const id    = document.getElementById('task-modal-id').value;
-  const title = document.getElementById('task-modal-title-input').value.trim();
-  const catId = document.getElementById('task-modal-cat').value;
-  const limit = parseInt(document.getElementById('task-modal-limit').value) || 25;
-  if (!title) { errEl.textContent = 'Title is required'; errEl.classList.remove('hidden'); return; }
-  const taskType = document.getElementById('task-modal-type').value || 'general';
-  const body = { title, category_id: catId || null, time_limit: limit, task_type: taskType };
-  const res  = id ? await api('PUT', `/api/tasks/${id}`, body) : await api('POST', '/api/tasks', body);
-  if (!res || res.error) { errEl.textContent = res?.error || 'Error'; errEl.classList.remove('hidden'); return; }
-  upsertTask(res);
-  document.getElementById('task-modal').classList.remove('open');
-  toast(id ? 'Task updated!' : 'Task created!', 'success');
-  if (S.view === 'tasks') renderTasks(); else renderDashboard();
+  errEl.classList.add('hidden');
+  try {
+    const id    = document.getElementById('task-modal-id').value;
+    const title = (document.getElementById('task-modal-title-input').value || '').trim();
+    const catId = document.getElementById('task-modal-cat').value;
+    const limit = parseInt(document.getElementById('task-modal-limit').value) || 25;
+    if (!title) { errEl.textContent = 'Title is required'; errEl.classList.remove('hidden'); return; }
+    const typeEl = document.getElementById('task-modal-type');
+    const taskType = typeEl ? (typeEl.value || 'general') : 'general';
+    const body = { title, category_id: catId || null, time_limit: limit, task_type: taskType };
+    const res = id ? await api('PUT', `/api/tasks/${id}`, body) : await api('POST', '/api/tasks', body);
+    if (!res) return;
+    if (res.error) { errEl.textContent = res.error; errEl.classList.remove('hidden'); return; }
+    upsertTask(res);
+    document.getElementById('task-modal').classList.remove('open');
+    toast(id ? 'Task updated!' : 'Task created!', 'success');
+    if (S.view === 'tasks') renderTasks(); else renderDashboard();
+  } catch (err) {
+    errEl.textContent = 'Error: ' + err.message;
+    errEl.classList.remove('hidden');
+    toast('Save failed: ' + err.message, 'error');
+  }
 }
 
 function openGoalModal(goal) {
@@ -1684,10 +1693,13 @@ function statusColor(s) {
 // BOOT
 // ══════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', async () => {
-  await initAuth();
+  // Unregister any stale service workers so old cached JS never runs
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
+    navigator.serviceWorker.getRegistrations().then(regs => {
+      regs.forEach(r => r.unregister());
+    });
   }
+  await initAuth();
 });
 </script>
 </body>
