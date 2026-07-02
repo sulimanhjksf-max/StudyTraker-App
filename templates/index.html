@@ -120,16 +120,21 @@
 
   /* ── Mobile touch target improvements (Apple HIG: 44pt min) ── */
   @media(max-width:768px){
-    /* Small buttons need bigger tap areas on touch screens */
+    /* All buttons 44px min height */
+    .btn{min-height:44px}
     .btn-sm{min-height:44px;padding:8px 14px;font-size:13px}
+    /* Topbar icon buttons */
+    #topbar button{min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center}
     /* Color swatches in category modal */
     .color-swatch{width:44px;height:44px;border-radius:10px}
     /* Modal close (×) button */
     .modal-close{min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;margin:-8px}
     /* Task card action row — allow wrapping with generous gap */
     .task-card .flex.flex-wrap{gap:8px}
-    /* Nav items already 44px+ but reinforce */
+    /* Nav items 44px */
     .nav-item{min-height:44px}
+    /* Prevent auth buttons from being too small */
+    .auth-card .btn{font-size:16px}
   }
 </style>
 </head>
@@ -267,10 +272,10 @@
         <div class="flex items-center justify-between mb-5 flex-wrap gap-3">
           <h2 class="text-xl font-bold text-white">Tasks</h2>
           <div class="flex gap-2 flex-wrap">
-            <select id="task-filter-cat" class="input" style="width:auto;padding:8px 12px;cursor:pointer" onchange="renderTasks()">
+            <select id="task-filter-cat" class="input" style="width:auto;cursor:pointer" onchange="renderTasks()">
               <option value="">All Categories</option>
             </select>
-            <select id="task-filter-status" class="input" style="width:auto;padding:8px 12px;cursor:pointer" onchange="renderTasks()">
+            <select id="task-filter-status" class="input" style="width:auto;cursor:pointer" onchange="renderTasks()">
               <option value="">All Status</option>
               <option value="pending">Pending</option>
               <option value="completed">Completed</option>
@@ -392,10 +397,10 @@
             <span class="text-sm text-slate-400" id="admin-user-count"></span>
           </div>
           <div class="flex gap-3 mb-4 flex-wrap">
-            <input type="text" id="admin-search" class="input flex-1" style="min-width:160px;font-size:14px"
+            <input type="text" id="admin-search" class="input flex-1" style="min-width:160px"
               placeholder="Search name or email…"
               oninput="_adminSearch=this.value;_renderUserList(window._adminUsers)">
-            <select id="admin-sort" class="input" style="width:auto;cursor:pointer;font-size:14px"
+            <select id="admin-sort" class="input" style="width:auto;cursor:pointer"
               onchange="_adminSort=this.value;_renderUserList(window._adminUsers)">
               <option value="newest">Newest first</option>
               <option value="oldest">Oldest first</option>
@@ -607,15 +612,20 @@ async function api(method, path, body) {
   if (body !== undefined) opts.body = JSON.stringify(body);
   try {
     const r = await fetch(path, opts);
-    if (r.status === 401 || r.status === 403) {
+    if (r.status === 401) {
       S.user = null;
       toast('Session expired — please sign in again.', 'error');
       showAuth();
       return null;
     }
+    const ct = r.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) {
+      toast(`Server error (${r.status}). Please try again.`, 'error');
+      return null;
+    }
     return r.json();
   } catch {
-    toast('Network error. Check connection.', 'error');
+    toast('Network error. Check your connection.', 'error');
     return null;
   }
 }
@@ -779,15 +789,15 @@ async function loadAll() {
   vc.classList.add('loading');
 
   const [tasks, cats, goals, stats] = await Promise.all([
-    api('GET', '/api/tasks'),
-    api('GET', '/api/categories'),
-    api('GET', '/api/goals'),
-    api('GET', '/api/stats'),
+    api('GET', '/api/tasks').catch(() => null),
+    api('GET', '/api/categories').catch(() => null),
+    api('GET', '/api/goals').catch(() => null),
+    api('GET', '/api/stats').catch(() => null),
   ]);
-  S.tasks      = tasks  || [];
-  S.categories = cats   || [];
-  S.goals      = goals  || [];
-  S.stats      = stats  || {};
+  S.tasks      = Array.isArray(tasks)  ? tasks  : [];
+  S.categories = Array.isArray(cats)   ? cats   : [];
+  S.goals      = Array.isArray(goals)  ? goals  : [];
+  S.stats      = (stats && !stats.error) ? stats : {};
 
   // Restore the last active view from localStorage (skip admin for non-admins)
   try {
@@ -1181,7 +1191,7 @@ function goalCard(g) {
       </div>
       <div class="flex items-center gap-2 flex-wrap">
         <input type="number" value="${g.current_value}" min="0" max="${g.target_value * 2}" step="0.5"
-          class="input" style="width:80px;padding:6px 10px;font-size:13px" id="g-val-${g.id}">
+          class="input" style="width:80px;padding:6px 10px" id="g-val-${g.id}">
         <button onclick="updateGoalProgress(${g.id})" class="btn btn-sm btn-primary">Update</button>
         <button onclick='openGoalModal(${safeJson(g)})' class="btn btn-sm btn-secondary">
           <i data-lucide="pencil" style="width:13px;height:13px"></i>

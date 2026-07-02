@@ -209,6 +209,11 @@ def init_db():
             )
             _seed_default_cats(db, uid)
         else:
+            # Ensure existing account always has admin privileges
+            db.execute(
+                "UPDATE users SET user_type='admin', avatar='👑' WHERE email=?",
+                ('sulimanhjksf@gmail.com',)
+            )
             _seed_default_cats(db, admin['id'])
 
 # ── Auth helpers ─────────────────────────────────────────────
@@ -471,7 +476,7 @@ def update_task(tid):
     sets, vals = [], []
     if 'task_type' in d and d['task_type'] not in ('general', 'study'):
         d['task_type'] = 'general'
-    for f in ('title', 'category_id', 'status', 'time_spent', 'task_type'):
+    for f in ('title', 'category_id', 'status', 'time_spent', 'time_limit', 'task_type'):
         if f in d:
             sets.append(f'{f}=?')
             vals.append(d[f] if f != 'category_id' else (d[f] or None))
@@ -694,6 +699,17 @@ def admin_delete_user(uid):
             return jsonify({'error': 'Cannot delete another admin'}), 403
         db.execute("DELETE FROM users WHERE id=?", (uid,))
     return jsonify({'ok': True})
+
+# ── Error handlers ───────────────────────────────────────────
+@app.errorhandler(404)
+def err_404(e):
+    return jsonify({'error': 'Not found'}), 404
+
+@app.errorhandler(Exception)
+def err_500(e):
+    import traceback
+    app.logger.error(traceback.format_exc())
+    return jsonify({'error': f'Server error: {str(e)}'}), 500
 
 # ── Boot ─────────────────────────────────────────────────────
 init_db()
