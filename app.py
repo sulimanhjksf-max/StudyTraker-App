@@ -171,6 +171,19 @@ CREATE TABLE IF NOT EXISTS study_sessions (
 );
 """
 
+_DEFAULT_CATS = [
+    ('Core Study', '#6366f1', '📚'),
+    ('Research',   '#10b981', '🔬'),
+    ('Review',     '#f59e0b', '📝'),
+    ('Practice',   '#a855f7', '⚡'),
+]
+
+def _seed_default_cats(db, uid):
+    if not db.execute("SELECT id FROM categories WHERE user_id=?", (uid,)).fetchone():
+        for name, color, icon in _DEFAULT_CATS:
+            db.insert("INSERT INTO categories (user_id,name,color,icon) VALUES (?,?,?,?)",
+                      (uid, name, color, icon))
+
 def init_db():
     with get_db() as db:
         if USE_PG:
@@ -182,11 +195,14 @@ def init_db():
         admin = db.execute("SELECT id FROM users WHERE email=?",
                            ('sulimanhjksf@gmail.com',)).fetchone()
         if not admin:
-            db.insert(
+            uid = db.insert(
                 "INSERT INTO users (username,email,password,user_type,avatar) VALUES (?,?,?,?,?)",
                 ('Suliman', 'sulimanhjksf@gmail.com',
                  generate_password_hash('1234'), 'admin', '👑')
             )
+            _seed_default_cats(db, uid)
+        else:
+            _seed_default_cats(db, admin['id'])
 
 # ── Auth helpers ─────────────────────────────────────────────
 def current_user():
@@ -307,6 +323,9 @@ def auth_login():
         return jsonify({'error': 'Invalid email or password'}), 401
     if u['is_banned']:
         return jsonify({'error': 'Your account has been suspended.'}), 403
+    # Auto-seed default categories for users who have none (e.g. after DB migration)
+    with get_db() as db:
+        _seed_default_cats(db, u['id'])
     session['user_id'] = u['id']
     session.permanent = True
     return jsonify({'ok': True, 'user': {
