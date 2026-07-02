@@ -536,7 +536,12 @@ async function api(method, path, body) {
   if (body !== undefined) opts.body = JSON.stringify(body);
   try {
     const r = await fetch(path, opts);
-    if (r.status === 401) { showAuth(); return null; }
+    if (r.status === 401 || r.status === 403) {
+      S.user = null;
+      toast('Session expired — please sign in again.', 'error');
+      showAuth();
+      return null;
+    }
     return r.json();
   } catch {
     toast('Network error. Check connection.', 'error');

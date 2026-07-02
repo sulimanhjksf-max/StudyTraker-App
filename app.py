@@ -2,119 +2,216 @@ from flask import Flask, render_template, request, jsonify, session
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
 from functools import wraps
-import sqlite3, os, secrets
-from datetime import datetime, timedelta
+import os, secrets
+from datetime import datetime, date, timedelta
 
+# ── App ──────────────────────────────────────────────────────
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
-app.secret_key                   = os.environ.get('SECRET_KEY', secrets.token_hex(32))
-app.permanent_session_lifetime   = timedelta(days=30)
+app.secret_key                        = os.environ.get('SECRET_KEY', secrets.token_hex(32))
+app.permanent_session_lifetime        = timedelta(days=30)
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024
-DB = os.environ.get('DATABASE_URL', os.path.join(os.path.dirname(__file__), 'study_tracker.db'))
+app.config['MAX_CONTENT_LENGTH']      = 5 * 1024 * 1024
 
-# ══════════════════════════════════════════════════════════
-# DATABASE
-# ══════════════════════════════════════════════════════════
-def get_db():
-    conn = sqlite3.connect(DB)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+# ── Database layer (SQLite local / PostgreSQL on Render) ─────
+_DB_URL = os.environ.get('DATABASE_URL', '')
+USE_PG  = 'postgres' in _DB_URL.lower()
+
+if USE_PG:
+    import psycopg2, psycopg2.extras
+    _PG_URL = _DB_URL.replace('postgres://', 'postgresql://', 1)
+else:
+    import sqlite3 as _sq
+    _SQ = os.path.join(os.path.dirname(__file__), 'study_tracker.db')
+
+
+def _r2d(row):
+    """Row → plain dict, converting date/datetime to ISO strings."""
+    if row is None:
+        return None
+    d = dict(row)
+    for k, v in d.items():
+        if isinstance(v, (datetime, date)):
+            d[k] = v.isoformat()
+    return d
+
+
+class Db:
+    """Unified SQLite / PostgreSQL context manager."""
+
+    def __init__(self):
+        if USE_PG:
+            self._cn = psycopg2.connect(_PG_URL,
+                                        cursor_factory=psycopg2.extras.RealDictCursor)
+        else:
+            self._cn = _sq.connect(_SQ)
+            self._cn.row_factory = _sq.Row
+            self._cn.execute('PRAGMA foreign_keys = ON')
+
+    # replace ? with %s for postgres
+    def _q(self, sql):
+        return sql.replace('?', '%s') if USE_PG else sql
+
+    def execute(self, sql, p=()):
+        if USE_PG:
+            cur = self._cn.cursor()
+            cur.execute(self._q(sql), p or ())
+            return cur
+        return self._cn.execute(sql, p or ())
+
+    def insert(self, sql, p=()):
+        """Run INSERT and return new row id."""
+        if USE_PG:
+            cur = self._cn.cursor()
+            cur.execute(self._q(sql) + ' RETURNING id', p or ())
+            return cur.fetchone()['id']
+        cur = self._cn.execute(sql, p or ())
+        return cur.lastrowid
+
+    def commit(self):
+        self._cn.commit()
+
+    def rollback(self):
+        try: self._cn.rollback()
+        except Exception: pass
+
+    def close(self):
+        try: self._cn.close()
+        except Exception: pass
+
+    def __enter__(self): return self
+
+    def __exit__(self, exc, *_):
+        if exc: self.rollback()
+        else:   self.commit()
+        self.close()
+
+
+def get_db(): return Db()
+
+
+# ── Schema ───────────────────────────────────────────────────
+_PG_SCHEMA = [
+    """CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY, username TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL, password TEXT NOT NULL,
+        user_type TEXT DEFAULT 'user', avatar TEXT DEFAULT '🎓',
+        is_banned INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT NOW()
+    )""",
+    """CREATE TABLE IF NOT EXISTS categories (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL, color TEXT DEFAULT '#6366f1',
+        icon TEXT DEFAULT '📚', sort_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW()
+    )""",
+    """CREATE TABLE IF NOT EXISTS tasks (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+        status TEXT DEFAULT 'pending', time_limit INTEGER DEFAULT 25,
+        time_spent INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT NOW(),
+        completed_at TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS goals (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title TEXT NOT NULL, type TEXT DEFAULT 'daily',
+        target_value REAL DEFAULT 4.0, current_value REAL DEFAULT 0.0,
+        unit TEXT DEFAULT 'tasks', completed INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW()
+    )""",
+    """CREATE TABLE IF NOT EXISTS study_sessions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        task_id INTEGER, duration INTEGER DEFAULT 0,
+        date DATE DEFAULT CURRENT_DATE, created_at TIMESTAMP DEFAULT NOW()
+    )""",
+]
+
+_SQ_SCHEMA = """
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL,
+    email TEXT UNIQUE NOT NULL, password TEXT NOT NULL,
+    user_type TEXT DEFAULT 'user', avatar TEXT DEFAULT '🎓',
+    is_banned INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE IF NOT EXISTS categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL,
+    name TEXT NOT NULL, color TEXT DEFAULT '#6366f1',
+    icon TEXT DEFAULT '📚', sort_order INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now','localtime')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL,
+    title TEXT NOT NULL, category_id INTEGER, status TEXT DEFAULT 'pending',
+    time_limit INTEGER DEFAULT 25, time_spent INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now','localtime')), completed_at TEXT,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
+);
+CREATE TABLE IF NOT EXISTS goals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL,
+    title TEXT NOT NULL, type TEXT DEFAULT 'daily',
+    target_value REAL DEFAULT 4.0, current_value REAL DEFAULT 0.0,
+    unit TEXT DEFAULT 'tasks', completed INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now','localtime')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS study_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL,
+    task_id INTEGER, duration INTEGER DEFAULT 0,
+    date TEXT DEFAULT (date('now','localtime')),
+    created_at TEXT DEFAULT (datetime('now','localtime')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+"""
 
 def init_db():
-    with get_db() as c:
-        c.executescript("""
-        CREATE TABLE IF NOT EXISTS users (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            username    TEXT    NOT NULL,
-            email       TEXT    UNIQUE NOT NULL,
-            password    TEXT    NOT NULL,
-            user_type   TEXT    DEFAULT 'user',
-            avatar      TEXT    DEFAULT '🎓',
-            is_banned   INTEGER DEFAULT 0,
-            created_at  TEXT    DEFAULT (datetime('now','localtime'))
-        );
-
-        CREATE TABLE IF NOT EXISTS categories (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id     INTEGER NOT NULL,
-            name        TEXT    NOT NULL,
-            color       TEXT    DEFAULT '#6366f1',
-            icon        TEXT    DEFAULT '📚',
-            sort_order  INTEGER DEFAULT 0,
-            created_at  TEXT    DEFAULT (datetime('now','localtime')),
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        );
-
-        CREATE TABLE IF NOT EXISTS tasks (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id      INTEGER NOT NULL,
-            title        TEXT    NOT NULL,
-            category_id  INTEGER,
-            status       TEXT    DEFAULT 'pending',
-            time_limit   INTEGER DEFAULT 25,
-            time_spent   INTEGER DEFAULT 0,
-            created_at   TEXT    DEFAULT (datetime('now','localtime')),
-            completed_at TEXT,
-            FOREIGN KEY (user_id)     REFERENCES users(id)      ON DELETE CASCADE,
-            FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS goals (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id       INTEGER NOT NULL,
-            title         TEXT    NOT NULL,
-            type          TEXT    DEFAULT 'daily',
-            target_value  REAL    DEFAULT 4.0,
-            current_value REAL    DEFAULT 0.0,
-            unit          TEXT    DEFAULT 'tasks',
-            completed     INTEGER DEFAULT 0,
-            created_at    TEXT    DEFAULT (datetime('now','localtime')),
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        );
-
-        CREATE TABLE IF NOT EXISTS study_sessions (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id    INTEGER NOT NULL,
-            task_id    INTEGER,
-            duration   INTEGER DEFAULT 0,
-            date       TEXT    DEFAULT (date('now','localtime')),
-            created_at TEXT    DEFAULT (datetime('now','localtime')),
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        );
-        """)
-        # Seed super-admin
-        admin = c.execute("SELECT id FROM users WHERE email=?", ('sulimanhjksf@gmail.com',)).fetchone()
+    with get_db() as db:
+        if USE_PG:
+            for stmt in _PG_SCHEMA:
+                db.execute(stmt)
+        else:
+            db._cn.executescript(_SQ_SCHEMA)
+        # Seed admin
+        admin = db.execute("SELECT id FROM users WHERE email=?",
+                           ('sulimanhjksf@gmail.com',)).fetchone()
         if not admin:
-            c.execute(
+            db.insert(
                 "INSERT INTO users (username,email,password,user_type,avatar) VALUES (?,?,?,?,?)",
-                ('Suliman', 'sulimanhjksf@gmail.com', generate_password_hash('1234'), 'admin', '👑')
+                ('Suliman', 'sulimanhjksf@gmail.com',
+                 generate_password_hash('1234'), 'admin', '👑')
             )
-            c.commit()
 
-# ══════════════════════════════════════════════════════════
-# AUTH MIDDLEWARE
-# ══════════════════════════════════════════════════════════
+# ── Auth helpers ─────────────────────────────────────────────
 def current_user():
     uid = session.get('user_id')
     if not uid:
         return None
-    with get_db() as c:
-        return c.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
+    with get_db() as db:
+        return db.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
+
 
 def login_required(f):
     @wraps(f)
     def dec(*a, **kw):
         if 'user_id' not in session:
-            return jsonify({'error': 'Unauthorized', 'code': 401}), 401
+            return jsonify({'error': 'Please sign in'}), 401
         u = current_user()
-        if not u or u['is_banned']:
+        if not u:
             session.clear()
-            return jsonify({'error': 'Account suspended', 'code': 403}), 403
+            return jsonify({'error': 'Session expired'}), 401   # <-- 401 not 403
+        if u['is_banned']:
+            session.clear()
+            return jsonify({'error': 'Account suspended'}), 403
         return f(*a, **kw)
     return dec
+
 
 def admin_required(f):
     @wraps(f)
@@ -127,9 +224,12 @@ def admin_required(f):
         return f(*a, **kw)
     return dec
 
-# ══════════════════════════════════════════════════════════
-# PAGES
-# ══════════════════════════════════════════════════════════
+
+def _int(v):
+    try: return int(v or 0)
+    except Exception: return 0
+
+# ── Pages ────────────────────────────────────────────────────
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -145,20 +245,21 @@ def service_worker():
     resp.headers['Service-Worker-Allowed'] = '/'
     return resp
 
-# ══════════════════════════════════════════════════════════
-# AUTH
-# ══════════════════════════════════════════════════════════
+# ── Auth ─────────────────────────────────────────────────────
 @app.route('/api/auth/me')
 def auth_me():
     uid = session.get('user_id')
     if not uid:
         return jsonify({'user': None})
-    with get_db() as c:
-        u = c.execute("SELECT id,username,email,avatar,user_type,created_at FROM users WHERE id=?", (uid,)).fetchone()
+    with get_db() as db:
+        u = db.execute(
+            "SELECT id,username,email,avatar,user_type,created_at FROM users WHERE id=?",
+            (uid,)).fetchone()
     if not u:
         session.clear()
         return jsonify({'user': None})
-    return jsonify({'user': dict(u)})
+    return jsonify({'user': _r2d(u)})
+
 
 @app.route('/api/auth/register', methods=['POST'])
 def auth_register():
@@ -172,25 +273,26 @@ def auth_register():
         return jsonify({'error': 'Password must be at least 6 characters'}), 400
     if '@' not in email:
         return jsonify({'error': 'Invalid email address'}), 400
-    with get_db() as c:
-        if c.execute("SELECT id FROM users WHERE email=?", (email,)).fetchone():
+    with get_db() as db:
+        if db.execute("SELECT id FROM users WHERE email=?", (email,)).fetchone():
             return jsonify({'error': 'Email already registered'}), 409
-        cur = c.execute(
+        uid = db.insert(
             "INSERT INTO users (username,email,password,avatar) VALUES (?,?,?,?)",
             (username, email, generate_password_hash(password), '🎓')
         )
-        c.commit()
-        uid = cur.lastrowid
-        # Default categories
         for name, color, icon in [
             ('Core Study','#6366f1','📚'), ('Research','#10b981','🔬'),
             ('Review','#f59e0b','📝'),    ('Practice','#a855f7','⚡'),
         ]:
-            c.execute("INSERT INTO categories (user_id,name,color,icon) VALUES (?,?,?,?)", (uid,name,color,icon))
-        c.commit()
+            db.insert("INSERT INTO categories (user_id,name,color,icon) VALUES (?,?,?,?)",
+                      (uid, name, color, icon))
     session['user_id'] = uid
     session.permanent = True
-    return jsonify({'ok': True, 'user': {'id': uid, 'username': username, 'email': email, 'avatar': '🎓', 'user_type': 'user'}}), 201
+    return jsonify({'ok': True, 'user': {
+        'id': uid, 'username': username, 'email': email,
+        'avatar': '🎓', 'user_type': 'user'
+    }}), 201
+
 
 @app.route('/api/auth/login', methods=['POST'])
 def auth_login():
@@ -199,20 +301,25 @@ def auth_login():
     password = (d.get('password') or '')
     if not email or not password:
         return jsonify({'error': 'Email and password required'}), 400
-    with get_db() as c:
-        u = c.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
+    with get_db() as db:
+        u = db.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
     if not u or not check_password_hash(u['password'], password):
         return jsonify({'error': 'Invalid email or password'}), 401
     if u['is_banned']:
-        return jsonify({'error': 'Your account has been suspended. Contact the admin.'}), 403
+        return jsonify({'error': 'Your account has been suspended.'}), 403
     session['user_id'] = u['id']
     session.permanent = True
-    return jsonify({'ok': True, 'user': {'id': u['id'], 'username': u['username'], 'email': u['email'], 'avatar': u['avatar'], 'user_type': u['user_type']}})
+    return jsonify({'ok': True, 'user': {
+        'id': u['id'], 'username': u['username'], 'email': u['email'],
+        'avatar': u['avatar'], 'user_type': u['user_type']
+    }})
+
 
 @app.route('/api/auth/logout', methods=['POST'])
 def auth_logout():
     session.clear()
     return jsonify({'ok': True})
+
 
 @app.route('/api/auth/profile', methods=['PUT'])
 @login_required
@@ -231,22 +338,24 @@ def auth_update_profile():
     if not sets:
         return jsonify({'error': 'Nothing to update'}), 400
     vals.append(uid)
-    with get_db() as c:
-        c.execute(f"UPDATE users SET {','.join(sets)} WHERE id=?", vals)
-        c.commit()
-        u = c.execute("SELECT id,username,email,avatar,user_type FROM users WHERE id=?", (uid,)).fetchone()
-    return jsonify({'ok': True, 'user': dict(u)})
+    with get_db() as db:
+        db.execute(f"UPDATE users SET {','.join(sets)} WHERE id=?", vals)
+        u = db.execute(
+            "SELECT id,username,email,avatar,user_type FROM users WHERE id=?", (uid,)
+        ).fetchone()
+    return jsonify({'ok': True, 'user': _r2d(u)})
 
-# ══════════════════════════════════════════════════════════
-# CATEGORIES
-# ══════════════════════════════════════════════════════════
+# ── Categories ───────────────────────────────────────────────
 @app.route('/api/categories', methods=['GET'])
 @login_required
 def get_categories():
     uid = session['user_id']
-    with get_db() as c:
-        rows = c.execute("SELECT * FROM categories WHERE user_id=? ORDER BY sort_order,created_at", (uid,)).fetchall()
-    return jsonify([dict(r) for r in rows])
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM categories WHERE user_id=? ORDER BY sort_order,id", (uid,)
+        ).fetchall()
+    return jsonify([_r2d(r) for r in rows])
+
 
 @app.route('/api/categories', methods=['POST'])
 @login_required
@@ -256,12 +365,14 @@ def create_category():
     if not name:
         return jsonify({'error': 'Name required'}), 400
     uid = session['user_id']
-    with get_db() as c:
-        cur = c.execute("INSERT INTO categories (user_id,name,color,icon) VALUES (?,?,?,?)",
-                        (uid, name, d.get('color','#6366f1'), d.get('icon','📚')))
-        c.commit()
-        row = c.execute("SELECT * FROM categories WHERE id=?", (cur.lastrowid,)).fetchone()
-    return jsonify(dict(row)), 201
+    with get_db() as db:
+        cid = db.insert(
+            "INSERT INTO categories (user_id,name,color,icon) VALUES (?,?,?,?)",
+            (uid, name, d.get('color', '#6366f1'), d.get('icon', '📚'))
+        )
+        row = db.execute("SELECT * FROM categories WHERE id=?", (cid,)).fetchone()
+    return jsonify(_r2d(row)), 201
+
 
 @app.route('/api/categories/<int:cid>', methods=['PUT'])
 @login_required
@@ -269,31 +380,28 @@ def update_category(cid):
     d = request.json or {}
     uid = session['user_id']
     sets, vals = [], []
-    for f in ('name','color','icon','sort_order'):
+    for f in ('name', 'color', 'icon', 'sort_order'):
         if f in d:
             sets.append(f'{f}=?'); vals.append(d[f])
     if not sets:
         return jsonify({'error': 'Nothing to update'}), 400
     vals.extend([cid, uid])
-    with get_db() as c:
-        c.execute(f"UPDATE categories SET {','.join(sets)} WHERE id=? AND user_id=?", vals)
-        c.commit()
-        row = c.execute("SELECT * FROM categories WHERE id=?", (cid,)).fetchone()
-    return jsonify(dict(row))
+    with get_db() as db:
+        db.execute(f"UPDATE categories SET {','.join(sets)} WHERE id=? AND user_id=?", vals)
+        row = db.execute("SELECT * FROM categories WHERE id=?", (cid,)).fetchone()
+    return jsonify(_r2d(row))
+
 
 @app.route('/api/categories/<int:cid>', methods=['DELETE'])
 @login_required
 def delete_category(cid):
     uid = session['user_id']
-    with get_db() as c:
-        c.execute("DELETE FROM categories WHERE id=? AND user_id=?", (cid, uid))
-        c.commit()
+    with get_db() as db:
+        db.execute("DELETE FROM categories WHERE id=? AND user_id=?", (cid, uid))
     return jsonify({'ok': True})
 
-# ══════════════════════════════════════════════════════════
-# TASKS
-# ══════════════════════════════════════════════════════════
-TASK_SELECT = """
+# ── Tasks ────────────────────────────────────────────────────
+_TASK_SQL = """
     SELECT t.*, c.name as category_name, c.color as category_color, c.icon as category_icon
     FROM tasks t LEFT JOIN categories c ON t.category_id=c.id
 """
@@ -302,9 +410,12 @@ TASK_SELECT = """
 @login_required
 def get_tasks():
     uid = session['user_id']
-    with get_db() as c:
-        rows = c.execute(TASK_SELECT + "WHERE t.user_id=? ORDER BY t.created_at DESC", (uid,)).fetchall()
-    return jsonify([dict(r) for r in rows])
+    with get_db() as db:
+        rows = db.execute(
+            _TASK_SQL + "WHERE t.user_id=? ORDER BY t.created_at DESC", (uid,)
+        ).fetchall()
+    return jsonify([_r2d(r) for r in rows])
+
 
 @app.route('/api/tasks', methods=['POST'])
 @login_required
@@ -314,12 +425,14 @@ def create_task():
     if not title:
         return jsonify({'error': 'Title required'}), 400
     uid = session['user_id']
-    with get_db() as c:
-        cur = c.execute("INSERT INTO tasks (user_id,title,category_id,time_limit) VALUES (?,?,?,?)",
-                        (uid, title, d.get('category_id') or None, int(d.get('time_limit', 25))))
-        c.commit()
-        row = c.execute(TASK_SELECT + "WHERE t.id=?", (cur.lastrowid,)).fetchone()
-    return jsonify(dict(row)), 201
+    with get_db() as db:
+        tid = db.insert(
+            "INSERT INTO tasks (user_id,title,category_id,time_limit) VALUES (?,?,?,?)",
+            (uid, title, d.get('category_id') or None, _int(d.get('time_limit', 25)))
+        )
+        row = db.execute(_TASK_SQL + "WHERE t.id=?", (tid,)).fetchone()
+    return jsonify(_r2d(row)), 201
+
 
 @app.route('/api/tasks/<int:tid>', methods=['PUT'])
 @login_required
@@ -327,39 +440,40 @@ def update_task(tid):
     d = request.json or {}
     uid = session['user_id']
     sets, vals = [], []
-    for f in ('title','category_id','status','time_spent'):
+    for f in ('title', 'category_id', 'status', 'time_spent'):
         if f in d:
-            sets.append(f'{f}=?'); vals.append(d[f] if f != 'category_id' else (d[f] or None))
+            sets.append(f'{f}=?')
+            vals.append(d[f] if f != 'category_id' else (d[f] or None))
     if 'status' in d and d['status'] == 'completed':
         sets.append('completed_at=?'); vals.append(datetime.now().isoformat())
     if not sets:
         return jsonify({'error': 'Nothing to update'}), 400
     vals.extend([tid, uid])
-    with get_db() as c:
-        c.execute(f"UPDATE tasks SET {','.join(sets)} WHERE id=? AND user_id=?", vals)
-        c.commit()
-        row = c.execute(TASK_SELECT + "WHERE t.id=?", (tid,)).fetchone()
-    return jsonify(dict(row))
+    with get_db() as db:
+        db.execute(f"UPDATE tasks SET {','.join(sets)} WHERE id=? AND user_id=?", vals)
+        row = db.execute(_TASK_SQL + "WHERE t.id=?", (tid,)).fetchone()
+    return jsonify(_r2d(row))
+
 
 @app.route('/api/tasks/<int:tid>', methods=['DELETE'])
 @login_required
 def delete_task(tid):
     uid = session['user_id']
-    with get_db() as c:
-        c.execute("DELETE FROM tasks WHERE id=? AND user_id=?", (tid, uid))
-        c.commit()
+    with get_db() as db:
+        db.execute("DELETE FROM tasks WHERE id=? AND user_id=?", (tid, uid))
     return jsonify({'ok': True})
 
-# ══════════════════════════════════════════════════════════
-# GOALS
-# ══════════════════════════════════════════════════════════
+# ── Goals ────────────────────────────────────────────────────
 @app.route('/api/goals', methods=['GET'])
 @login_required
 def get_goals():
     uid = session['user_id']
-    with get_db() as c:
-        rows = c.execute("SELECT * FROM goals WHERE user_id=? ORDER BY type,created_at DESC", (uid,)).fetchall()
-    return jsonify([dict(r) for r in rows])
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM goals WHERE user_id=? ORDER BY type,id DESC", (uid,)
+        ).fetchall()
+    return jsonify([_r2d(r) for r in rows])
+
 
 @app.route('/api/goals', methods=['POST'])
 @login_required
@@ -369,12 +483,15 @@ def create_goal():
     if not title:
         return jsonify({'error': 'Title required'}), 400
     uid = session['user_id']
-    with get_db() as c:
-        cur = c.execute("INSERT INTO goals (user_id,title,type,target_value,unit) VALUES (?,?,?,?,?)",
-                        (uid, title, d.get('type','daily'), float(d.get('target_value',4)), d.get('unit','tasks')))
-        c.commit()
-        row = c.execute("SELECT * FROM goals WHERE id=?", (cur.lastrowid,)).fetchone()
-    return jsonify(dict(row)), 201
+    with get_db() as db:
+        gid = db.insert(
+            "INSERT INTO goals (user_id,title,type,target_value,unit) VALUES (?,?,?,?,?)",
+            (uid, title, d.get('type', 'daily'), float(d.get('target_value', 4)),
+             d.get('unit', 'tasks'))
+        )
+        row = db.execute("SELECT * FROM goals WHERE id=?", (gid,)).fetchone()
+    return jsonify(_r2d(row)), 201
+
 
 @app.route('/api/goals/<int:gid>', methods=['PUT'])
 @login_required
@@ -382,145 +499,155 @@ def update_goal(gid):
     d = request.json or {}
     uid = session['user_id']
     sets, vals = [], []
-    for f in ('title','current_value','target_value','completed'):
+    for f in ('title', 'current_value', 'target_value', 'completed'):
         if f in d:
             sets.append(f'{f}=?'); vals.append(d[f])
     if not sets:
         return jsonify({'error': 'Nothing to update'}), 400
     vals.extend([gid, uid])
-    with get_db() as c:
-        c.execute(f"UPDATE goals SET {','.join(sets)} WHERE id=? AND user_id=?", vals)
-        c.commit()
-        row = c.execute("SELECT * FROM goals WHERE id=?", (gid,)).fetchone()
-    return jsonify(dict(row))
+    with get_db() as db:
+        db.execute(f"UPDATE goals SET {','.join(sets)} WHERE id=? AND user_id=?", vals)
+        row = db.execute("SELECT * FROM goals WHERE id=?", (gid,)).fetchone()
+    return jsonify(_r2d(row))
+
 
 @app.route('/api/goals/<int:gid>', methods=['DELETE'])
 @login_required
 def delete_goal(gid):
     uid = session['user_id']
-    with get_db() as c:
-        c.execute("DELETE FROM goals WHERE id=? AND user_id=?", (gid, uid))
-        c.commit()
+    with get_db() as db:
+        db.execute("DELETE FROM goals WHERE id=? AND user_id=?", (gid, uid))
     return jsonify({'ok': True})
 
-# ══════════════════════════════════════════════════════════
-# SESSIONS (Time Tracking)
-# ══════════════════════════════════════════════════════════
+# ── Sessions ─────────────────────────────────────────────────
 @app.route('/api/sessions', methods=['POST'])
 @login_required
 def log_session():
     d = request.json or {}
     uid = session['user_id']
-    with get_db() as c:
-        c.execute("INSERT INTO study_sessions (user_id,task_id,duration,date) VALUES (?,?,?,?)",
-                  (uid, d.get('task_id'), int(d.get('duration',0)),
-                   d.get('date', datetime.now().strftime('%Y-%m-%d'))))
-        c.commit()
+    with get_db() as db:
+        db.insert(
+            "INSERT INTO study_sessions (user_id,task_id,duration,date) VALUES (?,?,?,?)",
+            (uid, d.get('task_id'), _int(d.get('duration', 0)),
+             d.get('date', datetime.now().strftime('%Y-%m-%d')))
+        )
     return jsonify({'ok': True})
 
-# ══════════════════════════════════════════════════════════
-# STATS
-# ══════════════════════════════════════════════════════════
+# ── Stats ────────────────────────────────────────────────────
 @app.route('/api/stats')
 @login_required
 def get_stats():
     uid   = session['user_id']
     today = datetime.now().strftime('%Y-%m-%d')
-    with get_db() as c:
+    with get_db() as db:
         weekly = []
         for i in range(6, -1, -1):
             day   = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
             label = (datetime.now() - timedelta(days=i)).strftime('%a')
-            row   = c.execute("SELECT COALESCE(SUM(duration),0) as m FROM study_sessions WHERE user_id=? AND date=?", (uid, day)).fetchone()
-            weekly.append({'date': day, 'label': label, 'minutes': row['m']})
+            row   = db.execute(
+                "SELECT COALESCE(SUM(duration),0) as m FROM study_sessions WHERE user_id=? AND CAST(date AS TEXT)=?",
+                (uid, day)).fetchone()
+            weekly.append({'date': day, 'label': label, 'minutes': _int(row['m'] if row else 0)})
 
-        cats = c.execute("""
+        cats = db.execute("""
             SELECT c.name as category, c.color, COALESCE(SUM(t.time_spent),0) as total
             FROM categories c
             LEFT JOIN tasks t ON t.category_id=c.id
-            WHERE c.user_id=? GROUP BY c.id HAVING total>0
+            WHERE c.user_id=? GROUP BY c.id, c.name, c.color
         """, (uid,)).fetchall()
+        cats = [_r2d(r) for r in cats if _int(r['total'] if r else 0) > 0]
 
         streak, check = 0, datetime.now()
-        while True:
-            row = c.execute("SELECT COUNT(*) as n FROM study_sessions WHERE user_id=? AND date=?", (uid, check.strftime('%Y-%m-%d'))).fetchone()
-            if row['n'] > 0:
-                streak += 1; check -= timedelta(days=1)
+        for _ in range(366):
+            row = db.execute(
+                "SELECT COUNT(*) as n FROM study_sessions WHERE user_id=? AND CAST(date AS TEXT)=?",
+                (uid, check.strftime('%Y-%m-%d'))).fetchone()
+            if row and _int(row['n']) > 0:
+                streak += 1
+                check -= timedelta(days=1)
             else:
                 break
 
-        done    = c.execute("SELECT COUNT(*) as n FROM tasks WHERE user_id=? AND status='completed'", (uid,)).fetchone()['n']
-        pending = c.execute("SELECT COUNT(*) as n FROM tasks WHERE user_id=? AND status='pending'",   (uid,)).fetchone()['n']
-        expired = c.execute("SELECT COUNT(*) as n FROM tasks WHERE user_id=? AND status='expired'",   (uid,)).fetchone()['n']
+        def cnt(sql): return _int((db.execute(sql, (uid,)).fetchone() or {}).get('n', 0))
+        done    = cnt("SELECT COUNT(*) as n FROM tasks WHERE user_id=? AND status='completed'")
+        pending = cnt("SELECT COUNT(*) as n FROM tasks WHERE user_id=? AND status='pending'")
+        expired = cnt("SELECT COUNT(*) as n FROM tasks WHERE user_id=? AND status='expired'")
         judged  = done + expired
-        score   = int(done / judged * 100) if judged > 0 else 0
+        score   = int(done / judged * 100) if judged else 0
+
         week_start = (datetime.now() - timedelta(days=6)).strftime('%Y-%m-%d')
-        week_mins  = c.execute("SELECT COALESCE(SUM(duration),0) as m FROM study_sessions WHERE user_id=? AND date>=?", (uid, week_start)).fetchone()['m']
-        today_mins = c.execute("SELECT COALESCE(SUM(duration),0) as m FROM study_sessions WHERE user_id=? AND date=?",  (uid, today)).fetchone()['m']
+        wm = db.execute("SELECT COALESCE(SUM(duration),0) as m FROM study_sessions WHERE user_id=? AND CAST(date AS TEXT)>=?",
+                        (uid, week_start)).fetchone()
+        tm = db.execute("SELECT COALESCE(SUM(duration),0) as m FROM study_sessions WHERE user_id=? AND CAST(date AS TEXT)=?",
+                        (uid, today)).fetchone()
 
-    return jsonify({'weekly': weekly, 'categories': [dict(r) for r in cats], 'streak': streak,
-                    'productivity_score': score, 'week_minutes': week_mins, 'today_minutes': today_mins,
-                    'tasks_done': done, 'tasks_pending': pending, 'tasks_expired': expired})
+    return jsonify({
+        'weekly': weekly, 'categories': cats,
+        'streak': streak, 'productivity_score': score,
+        'week_minutes': _int(wm['m'] if wm else 0),
+        'today_minutes': _int(tm['m'] if tm else 0),
+        'tasks_done': done, 'tasks_pending': pending, 'tasks_expired': expired,
+    })
 
-# ══════════════════════════════════════════════════════════
-# ADMIN
-# ══════════════════════════════════════════════════════════
+# ── Admin ────────────────────────────────────────────────────
 @app.route('/api/admin/stats')
 @admin_required
 def admin_stats():
-    with get_db() as c:
+    with get_db() as db:
+        def cnt(sql):
+            return _int((db.execute(sql).fetchone() or {}).get('n', 0))
         return jsonify({
-            'total_users':    c.execute("SELECT COUNT(*) as n FROM users").fetchone()['n'],
-            'banned_users':   c.execute("SELECT COUNT(*) as n FROM users WHERE is_banned=1").fetchone()['n'],
-            'total_tasks':    c.execute("SELECT COUNT(*) as n FROM tasks").fetchone()['n'],
-            'total_sessions': c.execute("SELECT COUNT(*) as n FROM study_sessions").fetchone()['n'],
+            'total_users':    cnt("SELECT COUNT(*) as n FROM users"),
+            'banned_users':   cnt("SELECT COUNT(*) as n FROM users WHERE is_banned=1"),
+            'total_tasks':    cnt("SELECT COUNT(*) as n FROM tasks"),
+            'total_sessions': cnt("SELECT COUNT(*) as n FROM study_sessions"),
         })
+
 
 @app.route('/api/admin/users')
 @admin_required
 def admin_get_users():
-    with get_db() as c:
-        users = c.execute("""
-            SELECT u.id, u.username, u.email, u.user_type, u.avatar, u.is_banned, u.created_at,
+    with get_db() as db:
+        users = db.execute("""
+            SELECT u.id, u.username, u.email, u.user_type, u.avatar,
+                   u.is_banned, u.created_at,
                    (SELECT COUNT(*) FROM tasks WHERE user_id=u.id) as task_count
-            FROM users u ORDER BY u.created_at DESC
+            FROM users u ORDER BY u.id DESC
         """).fetchall()
-    return jsonify([dict(u) for u in users])
+    return jsonify([_r2d(u) for u in users])
+
 
 @app.route('/api/admin/users/<int:uid>/ban', methods=['POST'])
 @admin_required
 def admin_ban(uid):
     if uid == session['user_id']:
         return jsonify({'error': 'Cannot ban yourself'}), 400
-    with get_db() as c:
-        u = c.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
+    with get_db() as db:
+        u = db.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
         if not u:
             return jsonify({'error': 'Not found'}), 404
         if u['user_type'] == 'admin':
             return jsonify({'error': 'Cannot ban another admin'}), 403
         new_val = 0 if u['is_banned'] else 1
-        c.execute("UPDATE users SET is_banned=? WHERE id=?", (new_val, uid))
-        c.commit()
+        db.execute("UPDATE users SET is_banned=? WHERE id=?", (new_val, uid))
     return jsonify({'ok': True, 'is_banned': bool(new_val)})
+
 
 @app.route('/api/admin/users/<int:uid>', methods=['DELETE'])
 @admin_required
 def admin_delete_user(uid):
     if uid == session['user_id']:
         return jsonify({'error': 'Cannot delete yourself'}), 400
-    with get_db() as c:
-        u = c.execute("SELECT user_type FROM users WHERE id=?", (uid,)).fetchone()
+    with get_db() as db:
+        u = db.execute("SELECT user_type FROM users WHERE id=?", (uid,)).fetchone()
         if not u:
             return jsonify({'error': 'Not found'}), 404
         if u['user_type'] == 'admin':
             return jsonify({'error': 'Cannot delete another admin'}), 403
-        c.execute("DELETE FROM users WHERE id=?", (uid,))
-        c.commit()
+        db.execute("DELETE FROM users WHERE id=?", (uid,))
     return jsonify({'ok': True})
 
-# ══════════════════════════════════════════════════════════
-# ENTRY POINT
-# ══════════════════════════════════════════════════════════
+# ── Boot ─────────────────────────────────────────────────────
 init_db()
 
 if __name__ == '__main__':
