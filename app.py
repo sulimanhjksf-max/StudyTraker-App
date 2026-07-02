@@ -189,8 +189,15 @@ def init_db():
         if USE_PG:
             for stmt in _PG_SCHEMA:
                 db.execute(stmt)
+            # Additive migration — safe to run every boot
+            db.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS task_type TEXT DEFAULT 'general'")
         else:
             db._cn.executescript(_SQ_SCHEMA)
+            # SQLite has no IF NOT EXISTS for ADD COLUMN — catch the duplicate error
+            try:
+                db.execute("ALTER TABLE tasks ADD COLUMN task_type TEXT DEFAULT 'general'")
+            except Exception:
+                pass
         # Seed admin
         admin = db.execute("SELECT id FROM users WHERE email=?",
                            ('sulimanhjksf@gmail.com',)).fetchone()
@@ -444,10 +451,13 @@ def create_task():
     if not title:
         return jsonify({'error': 'Title required'}), 400
     uid = session['user_id']
+    task_type = d.get('task_type', 'general')
+    if task_type not in ('general', 'study'):
+        task_type = 'general'
     with get_db() as db:
         tid = db.insert(
-            "INSERT INTO tasks (user_id,title,category_id,time_limit) VALUES (?,?,?,?)",
-            (uid, title, d.get('category_id') or None, _int(d.get('time_limit', 25)))
+            "INSERT INTO tasks (user_id,title,category_id,time_limit,task_type) VALUES (?,?,?,?,?)",
+            (uid, title, d.get('category_id') or None, _int(d.get('time_limit', 25)), task_type)
         )
         row = db.execute(_TASK_SQL + "WHERE t.id=?", (tid,)).fetchone()
     return jsonify(_r2d(row)), 201
@@ -459,7 +469,9 @@ def update_task(tid):
     d = request.json or {}
     uid = session['user_id']
     sets, vals = [], []
-    for f in ('title', 'category_id', 'status', 'time_spent'):
+    if 'task_type' in d and d['task_type'] not in ('general', 'study'):
+        d['task_type'] = 'general'
+    for f in ('title', 'category_id', 'status', 'time_spent', 'task_type'):
         if f in d:
             sets.append(f'{f}=?')
             vals.append(d[f] if f != 'category_id' else (d[f] or None))
@@ -607,12 +619,17 @@ def get_stats():
                         (uid, week_start)).fetchone()
         tm = db.execute("SELECT COALESCE(SUM(duration),0) as m FROM study_sessions WHERE user_id=? AND CAST(date AS TEXT)=?",
                         (uid, today)).fetchone()
+        # Total seconds spent on tasks explicitly typed as 'study'
+        sm = db.execute(
+            "SELECT COALESCE(SUM(time_spent),0) as s FROM tasks WHERE user_id=? AND task_type='study'",
+            (uid,)).fetchone()
 
     return jsonify({
         'weekly': weekly, 'categories': cats,
         'streak': streak, 'productivity_score': score,
-        'week_minutes': _int(wm['m'] if wm else 0),
-        'today_minutes': _int(tm['m'] if tm else 0),
+        'week_minutes':   _int(wm['m'] if wm else 0),
+        'today_minutes':  _int(tm['m'] if tm else 0),
+        'study_seconds':  _int(sm['s'] if sm else 0),
         'tasks_done': done, 'tasks_pending': pending, 'tasks_expired': expired,
     })
 

@@ -110,6 +110,27 @@
   .color-swatch.selected{border-color:#fff;transform:scale(1.15)}
   @keyframes pulse-fire{0%,100%{opacity:1}50%{opacity:.7}}
   .streak-fire{animation:pulse-fire 2s infinite}
+
+  /* Study task type badge */
+  .study-badge{background:#0c4a6e;color:#38bdf8;border:1px solid #0369a1;font-size:10px;padding:2px 7px;border-radius:20px;font-weight:600;letter-spacing:.03em}
+
+  /* Task type toggle buttons in modal */
+  .type-btn{transition:all .15s;flex:1;justify-content:center}
+  .type-btn.active{background:#6366f1;color:#fff;border-color:#6366f1}
+
+  /* ── Mobile touch target improvements (Apple HIG: 44pt min) ── */
+  @media(max-width:768px){
+    /* Small buttons need bigger tap areas on touch screens */
+    .btn-sm{min-height:44px;padding:8px 14px;font-size:13px}
+    /* Color swatches in category modal */
+    .color-swatch{width:44px;height:44px;border-radius:10px}
+    /* Modal close (×) button */
+    .modal-close{min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;margin:-8px}
+    /* Task card action row — allow wrapping with generous gap */
+    .task-card .flex.flex-wrap{gap:8px}
+    /* Nav items already 44px+ but reinforce */
+    .nav-item{min-height:44px}
+  }
 </style>
 </head>
 <body>
@@ -395,7 +416,7 @@
   <div class="modal">
     <div class="flex items-center justify-between mb-5">
       <h3 class="font-semibold text-white text-lg" id="task-modal-title">New Task</h3>
-      <button onclick="document.getElementById('task-modal').classList.remove('open')" class="text-slate-400 hover:text-white">
+      <button onclick="document.getElementById('task-modal').classList.remove('open')" class="modal-close text-slate-400 hover:text-white">
         <i data-lucide="x" style="width:20px;height:20px"></i>
       </button>
     </div>
@@ -410,6 +431,17 @@
         <select id="task-modal-cat" class="input" style="cursor:pointer">
           <option value="">No Category</option>
         </select>
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-2 uppercase tracking-wide">Task Type</label>
+        <div class="flex gap-2">
+          <button type="button" id="type-btn-general" onclick="setTaskType('general')"
+            class="btn btn-secondary type-btn active">📋 General</button>
+          <button type="button" id="type-btn-study" onclick="setTaskType('study')"
+            class="btn btn-secondary type-btn">📖 Study</button>
+        </div>
+        <input type="hidden" id="task-modal-type" value="general">
+        <p class="text-xs text-slate-500 mt-1" id="type-hint" style="display:none">Study tasks auto-accumulate active timer hours.</p>
       </div>
       <div>
         <label class="block text-xs text-slate-400 mb-2 uppercase tracking-wide">Time Limit (minutes)</label>
@@ -429,7 +461,7 @@
   <div class="modal">
     <div class="flex items-center justify-between mb-5">
       <h3 class="font-semibold text-white text-lg" id="goal-modal-title">New Goal</h3>
-      <button onclick="document.getElementById('goal-modal').classList.remove('open')" class="text-slate-400 hover:text-white">
+      <button onclick="document.getElementById('goal-modal').classList.remove('open')" class="modal-close text-slate-400 hover:text-white">
         <i data-lucide="x" style="width:20px;height:20px"></i>
       </button>
     </div>
@@ -469,7 +501,7 @@
   <div class="modal">
     <div class="flex items-center justify-between mb-5">
       <h3 class="font-semibold text-white text-lg" id="cat-modal-title">New Category</h3>
-      <button onclick="document.getElementById('cat-modal').classList.remove('open')" class="text-slate-400 hover:text-white">
+      <button onclick="document.getElementById('cat-modal').classList.remove('open')" class="modal-close text-slate-400 hover:text-white">
         <i data-lucide="x" style="width:20px;height:20px"></i>
       </button>
     </div>
@@ -513,7 +545,7 @@
   <div class="modal">
     <div class="flex items-center justify-between mb-5">
       <h3 class="font-semibold text-white text-lg">Choose Avatar</h3>
-      <button onclick="document.getElementById('avatar-modal').classList.remove('open')" class="text-slate-400 hover:text-white">
+      <button onclick="document.getElementById('avatar-modal').classList.remove('open')" class="modal-close text-slate-400 hover:text-white">
         <i data-lucide="x" style="width:20px;height:20px"></i>
       </button>
     </div>
@@ -699,6 +731,9 @@ function nav(view) {
   document.querySelectorAll('.nav-item[id^="nav-"]').forEach(el => {
     el.classList.toggle('active', el.id === 'nav-' + view);
   });
+  // Sidebar user row acts as the profile nav item — highlight it when profile is open
+  const sidebarUser = document.getElementById('sidebar-user');
+  if (sidebarUser) sidebarUser.classList.toggle('active', view === 'profile');
   const TITLES = { dashboard:'Dashboard', tasks:'Tasks', categories:'Categories', goals:'Goals', analytics:'Analytics', profile:'Profile', admin:'Admin' };
   document.getElementById('topbar-title').textContent = TITLES[view] || view;
   closeSidebar();
@@ -811,7 +846,8 @@ function renderDashboard() {
   const sb = document.getElementById('streak-badge');
   if (streak > 0) {
     sb.classList.remove('hidden');
-    document.getElementById('streak-count').textContent = streak + ' day streak';
+    document.getElementById('streak-count').textContent =
+      streak === 1 ? '1 day streak' : streak + ' days streak';
   } else { sb.classList.add('hidden'); }
 
   const pending = S.tasks.filter(t => t.status === 'pending').length;
@@ -821,15 +857,17 @@ function renderDashboard() {
     banner.textContent = '💡 ' + MSG_ENCOURAGE[Math.floor(Math.random() * MSG_ENCOURAGE.length)] + ` (${pending} pending)`;
   } else { banner.classList.add('hidden'); }
 
-  const done   = S.stats.tasks_done    || 0;
-  const todayM = S.stats.today_minutes || 0;
-  const weekM  = S.stats.week_minutes  || 0;
-  const score  = S.stats.productivity_score || 0;
+  const done    = S.stats.tasks_done    || 0;
+  const todayM  = S.stats.today_minutes || 0;
+  const weekM   = S.stats.week_minutes  || 0;
+  const score   = S.stats.productivity_score || 0;
+  const studyM  = Math.round((S.stats.study_seconds || 0) / 60);
   document.getElementById('dash-stats').innerHTML = [
-    { label: 'Tasks Done',  value: done,          icon: 'check-circle', color: '#10b981' },
-    { label: 'Today',       value: fmtTime(todayM),icon: 'clock',       color: '#6366f1' },
-    { label: 'This Week',   value: fmtTime(weekM), icon: 'calendar',    color: '#a855f7' },
-    { label: 'Score',       value: score + '%',    icon: 'zap',         color: '#f59e0b' },
+    { label: 'Tasks Done',  value: done,           icon: 'check-circle', color: '#10b981' },
+    { label: 'Today',       value: fmtTime(todayM), icon: 'clock',       color: '#6366f1' },
+    { label: 'Study Time',  value: fmtTime(studyM), icon: 'book-open',   color: '#06b6d4' },
+    { label: 'This Week',   value: fmtTime(weekM),  icon: 'calendar',    color: '#a855f7' },
+    { label: 'Score',       value: score + '%',     icon: 'zap',         color: '#f59e0b' },
   ].map(s => `
     <div class="card stat-card">
       <div style="color:${s.color}"><i data-lucide="${s.icon}" style="width:20px;height:20px"></i></div>
@@ -919,10 +957,13 @@ function taskCard(t) {
           <div class="flex-1 min-w-0">
             <div class="flex items-start justify-between gap-2">
               <h4 class="font-medium text-sm ${isDone ? 'line-through text-slate-400' : 'text-white'} truncate">${esc(t.title)}</h4>
-              <span class="badge flex-shrink-0" style="background:${statusColor(t.status)}22;color:${statusColor(t.status)}">${t.status}</span>
+              <div class="flex items-center gap-1 flex-shrink-0">
+                ${t.task_type === 'study' ? '<span class="study-badge">📖 STUDY</span>' : ''}
+                <span class="badge" style="background:${statusColor(t.status)}22;color:${statusColor(t.status)}">${t.status}</span>
+              </div>
             </div>
             ${catName ? `<div class="flex items-center gap-1 mt-1"><div class="cat-dot" style="background:${color}"></div><span class="text-xs text-slate-500">${catIcon} ${esc(catName)}</span></div>` : ''}
-            <div class="text-xs text-slate-500 mt-1">Limit: ${t.time_limit} min</div>
+            <div class="text-xs text-slate-500 mt-1">Limit: ${t.time_limit} min${t.task_type === 'study' && spent > 0 ? ` · <span style="color:#38bdf8">${fmtTime(Math.round(spent/60))} studied</span>` : ''}</div>
           </div>
         </div>
         <div class="flex items-center gap-2 mt-3 flex-wrap">
@@ -1042,6 +1083,7 @@ function tmReset(id) {
   const btn = document.getElementById(`btn-start-${id}`);
   if (btn) btn.innerHTML = '<i data-lucide="play" style="width:13px;height:13px"></i> Start';
   lucide.createIcons();
+  if (S.view === 'dashboard') renderDashboard();
 }
 
 function clearTimer(id) {
@@ -1403,6 +1445,14 @@ async function adminDelete(uid) {
 // ══════════════════════════════════════════════════════════
 // MODALS
 // ══════════════════════════════════════════════════════════
+function setTaskType(type) {
+  document.getElementById('task-modal-type').value = type;
+  ['general', 'study'].forEach(t => {
+    document.getElementById('type-btn-' + t).classList.toggle('active', t === type);
+  });
+  document.getElementById('type-hint').style.display = type === 'study' ? '' : 'none';
+}
+
 function openTaskModal(task) {
   task = task || {};
   document.getElementById('task-modal-title').textContent  = task.id ? 'Edit Task' : 'New Task';
@@ -1410,6 +1460,7 @@ function openTaskModal(task) {
   document.getElementById('task-modal-title-input').value  = task.title || '';
   document.getElementById('task-modal-limit').value        = task.time_limit || 25;
   document.getElementById('task-modal-error').classList.add('hidden');
+  setTaskType(task.task_type || 'general');
   populateCatDropdowns();
   setTimeout(() => {
     const catEl = document.getElementById('task-modal-cat');
@@ -1426,7 +1477,8 @@ async function saveTask(e) {
   const catId = document.getElementById('task-modal-cat').value;
   const limit = parseInt(document.getElementById('task-modal-limit').value) || 25;
   if (!title) { errEl.textContent = 'Title is required'; errEl.classList.remove('hidden'); return; }
-  const body = { title, category_id: catId || null, time_limit: limit };
+  const taskType = document.getElementById('task-modal-type').value || 'general';
+  const body = { title, category_id: catId || null, time_limit: limit, task_type: taskType };
   const res  = id ? await api('PUT', `/api/tasks/${id}`, body) : await api('POST', '/api/tasks', body);
   if (!res || res.error) { errEl.textContent = res?.error || 'Error'; errEl.classList.remove('hidden'); return; }
   upsertTask(res);
@@ -1506,6 +1558,16 @@ async function saveCategory(e) {
   if (!res || res.error) { toast(res?.error || 'Error', 'error'); return; }
   const idx = S.categories.findIndex(c => c.id === res.id);
   if (idx >= 0) S.categories[idx] = res; else S.categories.push(res);
+  // Sync updated name/color/icon onto any tasks that use this category
+  if (id) {
+    S.tasks.forEach(t => {
+      if (String(t.category_id) === String(res.id)) {
+        t.category_name  = res.name;
+        t.category_color = res.color;
+        t.category_icon  = res.icon;
+      }
+    });
+  }
   populateCatDropdowns();
   document.getElementById('cat-modal').classList.remove('open');
   toast(id ? 'Category updated!' : 'Category created!', 'success');
