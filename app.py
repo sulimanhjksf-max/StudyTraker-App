@@ -238,11 +238,13 @@ def login_required(f):
     @wraps(f)
     def dec(*a, **kw):
         if 'user_id' not in session:
+            app.logger.warning(f"[auth] no user_id in session for {request.path}")
             return jsonify({'error': 'Please sign in'}), 401
         u = current_user()
         if not u:
+            app.logger.warning(f"[auth] user_id={session.get('user_id')} not found in DB for {request.path}")
             session.clear()
-            return jsonify({'error': 'Session expired'}), 401   # <-- 401 not 403
+            return jsonify({'error': 'Session expired'}), 401
         if u['is_banned']:
             session.clear()
             return jsonify({'error': 'Account suspended'}), 403
@@ -465,6 +467,7 @@ def get_tasks():
 @login_required
 def create_task():
     d = request.json or {}
+    app.logger.info(f"[create_task] uid={session.get('user_id')} body={d}")
     title = (d.get('title') or '').strip()
     if not title:
         return jsonify({'error': 'Title required'}), 400
@@ -478,13 +481,17 @@ def create_task():
                 "INSERT INTO tasks (user_id,title,category_id,time_limit,task_type) VALUES (?,?,?,?,?)",
                 (uid, title, d.get('category_id') or None, _int(d.get('time_limit', 25)), task_type)
             )
-        except Exception:
+            app.logger.info(f"[create_task] inserted with task_type tid={tid}")
+        except Exception as e1:
+            app.logger.warning(f"[create_task] first insert failed ({e1}), trying fallback")
             db.rollback()
             tid = db.insert(
                 "INSERT INTO tasks (user_id,title,category_id,time_limit) VALUES (?,?,?,?)",
                 (uid, title, d.get('category_id') or None, _int(d.get('time_limit', 25)))
             )
+            app.logger.info(f"[create_task] fallback insert tid={tid}")
         row = db.execute(_TASK_SQL + "WHERE t.id=?", (tid,)).fetchone()
+        app.logger.info(f"[create_task] select after insert row={'FOUND' if row else 'NONE'}")
     return jsonify(_r2d(row)), 201
 
 
@@ -535,6 +542,7 @@ def get_goals():
 @login_required
 def create_goal():
     d = request.json or {}
+    app.logger.info(f"[create_goal] uid={session.get('user_id')} body={d}")
     title = (d.get('title') or '').strip()
     if not title:
         return jsonify({'error': 'Title required'}), 400
@@ -545,7 +553,9 @@ def create_goal():
             (uid, title, d.get('type', 'daily'), float(d.get('target_value', 4)),
              d.get('unit', 'tasks'))
         )
+        app.logger.info(f"[create_goal] inserted gid={gid}")
         row = db.execute("SELECT * FROM goals WHERE id=?", (gid,)).fetchone()
+        app.logger.info(f"[create_goal] select row={'FOUND' if row else 'NONE'}")
     return jsonify(_r2d(row)), 201
 
 

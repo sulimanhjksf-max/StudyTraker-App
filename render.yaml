@@ -10,4 +10,11 @@ services:
         value: 3.12.0
       - key: SECRET_KEY
         generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: studytrack-db
+          property: connectionString
 
+databases:
+  - name: studytrack-db
+    plan: free

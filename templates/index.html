@@ -613,16 +613,19 @@ let _adminSort   = 'newest';
 // API
 // ══════════════════════════════════════════════════════════
 async function api(method, path, body) {
+  console.log('[api] →', method, path, body !== undefined ? JSON.stringify(body) : '');
   const opts = { method, credentials: 'include', headers: { 'Content-Type': 'application/json' } };
   if (body !== undefined) opts.body = JSON.stringify(body);
   let r;
   try { r = await fetch(path, opts); }
-  catch (e) { toast('No connection — check your internet', 'error'); return null; }
+  catch (e) { console.error('[api] fetch threw:', e); toast('No connection — check your internet', 'error'); return null; }
+  console.log('[api] ←', r.status, path);
   if (r.status === 401) {
     S.user = null; toast('Session expired — sign in again', 'error'); showAuth(); return null;
   }
   let text;
   try { text = await r.text(); } catch (e) { toast('Could not read server response', 'error'); return null; }
+  console.log('[api] body:', text ? text.slice(0, 200) : '(empty)');
   if (!text) { toast('Empty server response', 'error'); return null; }
   try { return JSON.parse(text); }
   catch (e) { toast('Server error (' + r.status + '): ' + text.slice(0, 120), 'error'); return null; }
